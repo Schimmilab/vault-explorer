@@ -66,11 +66,13 @@ async function boot() {
     inspect(id);
   });
 
-  // System-Ring: zweiter Modus. Lazy — Daten erst beim ersten Wechsel holen.
+  const systemData = await getSystem();
+
+  // System-Ring: zweiter Modus (nur das System, konzentrisch).
   const ring = initRing(
     document.getElementById("ring")!,
     document.getElementById("ring-guides") as HTMLCanvasElement,
-    await getSystem(),
+    systemData,
   );
   ring.onItemClick((item) => renderSystemItem(inspectorEl, item));
   // Klick auf leere Ringfläche → Inspektor schließen (wie im Graph-Modus).
@@ -78,13 +80,15 @@ async function boot() {
     if (e.target === ring.cy) inspectorEl.classList.add("hidden");
   });
 
-  // Kuchen: dritter Modus. Gleicher Vault-Inhalt wie der Graph, als Kuchendiagramm.
+  // Kuchen: dritter Modus. Vault-Inhalt als Kuchendiagramm innen + System-Ringe außen.
   const pie = initPie(
     document.getElementById("pie")!,
     document.getElementById("pie-guides") as HTMLCanvasElement,
     data,
+    systemData,
   );
   pie.onNodeClick((id) => inspect(id));
+  pie.onSystemClick((item) => renderSystemItem(inspectorEl, item));
   pie.cy.on("tap", (e) => {
     if (e.target === pie.cy) inspectorEl.classList.add("hidden");
   });

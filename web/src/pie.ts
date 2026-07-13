@@ -1,16 +1,23 @@
 // web/src/pie.ts
-// Dritter View-Modus: "Kuchen". Zeigt denselben Vault-Inhalt wie der Graph, aber
-// als Kuchendiagramm: jeder Bereich (Top-Ordner) ist ein Tortenstück, der Winkel
-// proportional zur Notizenzahl, die Notizen radial von innen nach außen gepackt.
-// Knotengröße ~ Eingangsgrad (wichtige Notizen größer). Eigene Cytoscape-Instanz.
+// Dritter View-Modus: "Kuchen" — vereint Vault-Inhalt und System in EINER Ansicht.
+//  • INNEN: Kuchendiagramm des Vault-Inhalts. Jeder Bereich (Top-Ordner) ist ein
+//    GLEICH BREITES Tortenstück; die radiale Länge variiert nach Dokumentenmenge.
+//  • AUSSEN: konzentrische System-Ringe (Skills → Commands → MCPs), MCPs als
+//    äußerste Schicht zur "Außenwelt" — wie im System-Ring.
 import cytoscape, { Core } from "cytoscape";
-import type { GraphData, GraphNode } from "./api";
+import type { GraphData, GraphNode, SystemData, SystemItem } from "./api";
 
 const TAU = Math.PI * 2;
 
-/** Daily Logs (05-daily) raus — wie im Graph, verwässern nur die Struktur. */
 const isDaily = (id: string, area: string) =>
   area === "05-daily" || id.startsWith("05-daily/");
+
+/** Äußere System-Ringe von innen nach außen (MCPs ganz außen = Außenwelt). */
+const SYS_RINGS: { key: string; color: string; title: string }[] = [
+  { key: "skills", color: "#6ea8fe", title: "Skills" },
+  { key: "commands", color: "#7ee787", title: "Commands" },
+  { key: "mcps", color: "#d2a8ff", title: "MCPs" },
+];
 
 /** Farbe je Bereich über den Goldenen Winkel → benachbarte Stücke gut trennbar. */
 function areaColors(areas: string[]): Map<string, string> {
@@ -28,6 +35,7 @@ export interface PieController {
   show: () => void;
   hide: () => void;
   onNodeClick: (cb: (id: string) => void) => void;
+  onSystemClick: (cb: (item: SystemItem) => void) => void;
   clearSelection: () => void;
 }
 
@@ -35,40 +43,39 @@ export function initPie(
   container: HTMLElement,
   guideCanvas: HTMLCanvasElement,
   data: GraphData,
+  system: SystemData,
 ): PieController {
   // Notizen nach Bereich gruppieren (Daily raus).
   const byArea = new Map<string, GraphNode[]>();
-  let count = 0;
   for (const n of data.nodes) {
     if (isDaily(n.id, n.area)) continue;
     const arr = byArea.get(n.area);
     if (arr) arr.push(n); else byArea.set(n.area, [n]);
-    count++;
   }
   const areas = [...byArea.keys()].sort();
   const colors = areaColors(areas);
-  const total = count || 1;
 
   const R0 = 70;        // innerer Radius um die Nabe
   const NODE_GAP = 16;  // Ziel-Abstand benachbarter Knoten (Modell-px)
   const ROW = 16;       // radialer Reihenabstand
   const SEG_GAP = 0.05; // Winkel-Lücke zwischen zwei Stücken (rad)
+  const SEG_ANGLE = TAU / areas.length; // ALLE Segmente gleich breit
 
   const elements: cytoscape.ElementDefinition[] = [{
     data: { id: "pie::hub", label: "Vault" }, classes: "hub",
     position: { x: 0, y: 0 }, grabbable: false, selectable: false,
   }];
 
-  const boundaries: number[] = [];
+  const boundaries: number[] = []; // Grenzwinkel vor jedem Segment
+  const segRmax: number[] = [];    // Außenradius je Segment (parallel zu boundaries)
   let rMaxAll = R0;
   let theta = -Math.PI / 2;
 
   for (const area of areas) {
     const items = byArea.get(area)!;
-    const dth = (TAU * items.length) / total;
     boundaries.push(theta);
     const a0 = theta + SEG_GAP / 2;
-    const a1 = theta + dth - SEG_GAP / 2;
+    const a1 = theta + SEG_ANGLE - SEG_GAP / 2;
     const span = Math.max(0.001, a1 - a0);
     const color = colors.get(area)!;
 
@@ -85,6 +92,7 @@ export function initPie(
       placed += n;
       r += ROW;
     }
+    segRmax.push(r);
     rMaxAll = Math.max(rMaxAll, r);
 
     items.forEach((it, i) => elements.push({
@@ -101,21 +109,55 @@ export function initPie(
       grabbable: false, selectable: false,
     });
 
-    theta += dth;
+    theta += SEG_ANGLE;
+  }
+
+  // --- Äußere System-Ringe (Skills → Commands → MCPs) ---------------------
+  const RING_GAP = 54;
+  const sysRadii: { key: string; color: string; r: number }[] = [];
+  let ringR = rMaxAll + 54;
+  for (const sr of SYS_RINGS) {
+    const items = system.segments[sr.key] ?? [];
+    if (items.length === 0) continue;
+    sysRadii.push({ key: sr.key, color: sr.color, r: ringR });
+
+    const step = TAU / items.length;
+    items.forEach((item, i) => {
+      const a = -Math.PI / 2 + step / 2 + i * step;
+      elements.push({
+        data: {
+          id: item.id, label: item.label, segment: sr.key, color: sr.color,
+          beschreibung: item.meta?.beschreibung ?? "", pfad: item.meta?.pfad ?? "",
+        },
+        classes: "sysitem",
+        position: { x: Math.cos(a) * ringR, y: Math.sin(a) * ringR }, grabbable: false,
+      });
+    });
+
+    elements.push({
+      data: { id: `sysseg::${sr.key}`, label: `${sr.title} · ${items.length}`, color: sr.color },
+      classes: "seglabel",
+      position: { x: 0, y: -(ringR + 22) }, grabbable: false, selectable: false,
+    });
+    ringR += RING_GAP;
   }
 
   const cy = cytoscape({
     container,
     elements,
     layout: { name: "preset" },
-    minZoom: 0.1, maxZoom: 3,
+    minZoom: 0.08, maxZoom: 3,
     style: [
       { selector: "node.note", style: {
           "background-color": "data(color)",
           width: "mapData(deg, 0, 25, 5, 15)", height: "mapData(deg, 0, 25, 5, 15)",
           "border-width": 0, label: "", "z-index": 10,
       }},
-      { selector: "node.note.lbl, node.note:selected", style: {
+      { selector: "node.sysitem", style: {
+          "background-color": "data(color)", width: 13, height: 13,
+          "border-width": 0, label: "", "z-index": 12,
+      }},
+      { selector: "node.note.lbl, node.note:selected, node.sysitem.lbl, node.sysitem:selected", style: {
           label: "data(label)", "font-size": 12, color: "#e6e6e6",
           "text-background-color": "#0e1116", "text-background-opacity": 0.8,
           "text-background-padding": "3px", "text-margin-y": -4,
@@ -126,6 +168,12 @@ export function initPie(
           color: "data(color)", "background-opacity": 0, "text-valign": "center",
           "text-background-color": "#0e1116", "text-background-opacity": 0.65,
           "text-background-padding": "4px", "z-index": 5,
+      }},
+      { selector: "node.seglabel", style: {
+          label: "data(label)", "font-size": 16, "font-weight": "bold",
+          color: "data(color)", "background-opacity": 0, "text-valign": "center",
+          "text-background-color": "#0e1116", "text-background-opacity": 0.7,
+          "text-background-padding": "4px", "z-index": 6,
       }},
       { selector: "node.hub", style: {
           label: "data(label)", "font-size": 20, "font-weight": "bold",
@@ -138,7 +186,7 @@ export function initPie(
     wheelSensitivity: 0.2,
   });
 
-  // Radiale Trennlinien zwischen den Stücken (dezent), folgt Pan/Zoom.
+  // Guides: begrenzte Kuchen-Trennlinien + Kreise für die äußeren System-Ringe.
   const ctx = guideCanvas.getContext("2d")!;
   let dpr = window.devicePixelRatio || 1;
   function resize() {
@@ -156,13 +204,27 @@ export function initPie(
     if (hub.empty()) return;
     const c = hub.renderedPosition();
     const z = cy.zoom();
+    // Kuchen-Trennlinien nur bis zur Länge der angrenzenden Segmente.
     ctx.strokeStyle = "#3a4150";
     ctx.globalAlpha = 0.45;
     ctx.lineWidth = 1;
-    for (const b of boundaries) {
+    const n = boundaries.length;
+    for (let i = 0; i < n; i++) {
+      const b = boundaries[i];
+      const prev = (i - 1 + n) % n;
+      const rlen = Math.max(segRmax[prev], segRmax[i]) + 6;
       ctx.beginPath();
       ctx.moveTo(c.x + Math.cos(b) * R0 * 0.7 * z, c.y + Math.sin(b) * R0 * 0.7 * z);
-      ctx.lineTo(c.x + Math.cos(b) * (rMaxAll + 8) * z, c.y + Math.sin(b) * (rMaxAll + 8) * z);
+      ctx.lineTo(c.x + Math.cos(b) * rlen * z, c.y + Math.sin(b) * rlen * z);
+      ctx.stroke();
+    }
+    // Guide-Kreise für die System-Ringe.
+    for (const sr of sysRadii) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, sr.r * z, 0, TAU);
+      ctx.strokeStyle = sr.color;
+      ctx.globalAlpha = 0.16;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -177,27 +239,34 @@ export function initPie(
   window.addEventListener("resize", resize);
 
   // Labels zoom-kompensiert (konstante Bildschirmgröße).
-  const NOTE_LABEL_PX = 13;
-  const AREA_LABEL_PX = 15;
   function applyLabelZoom() {
     const z = cy.zoom();
-    cy.nodes(".note").style("font-size", Math.max(6, Math.min(90, NOTE_LABEL_PX / z)));
-    cy.nodes(".arealabel").style("font-size", Math.max(7, Math.min(110, AREA_LABEL_PX / z)));
+    cy.nodes(".note, .sysitem").style("font-size", Math.max(6, Math.min(90, 13 / z)));
+    cy.nodes(".arealabel").style("font-size", Math.max(7, Math.min(110, 15 / z)));
+    cy.nodes(".seglabel").style("font-size", Math.max(7, Math.min(120, 16 / z)));
   }
   cy.on("zoom", applyLabelZoom);
 
-  cy.on("mouseover", "node.note", (e) => e.target.addClass("lbl"));
-  cy.on("mouseout", "node.note", (e) => e.target.removeClass("lbl"));
+  cy.on("mouseover", "node.note, node.sysitem", (e) => e.target.addClass("lbl"));
+  cy.on("mouseout", "node.note, node.sysitem", (e) => e.target.removeClass("lbl"));
 
   let nodeCb: ((id: string) => void) | null = null;
+  let sysCb: ((item: SystemItem) => void) | null = null;
   cy.on("tap", "node.note", (e) => {
-    cy.nodes(".note").addClass("dim");
+    cy.nodes(".note, .sysitem").addClass("dim");
     e.target.removeClass("dim");
     nodeCb?.(e.target.id());
   });
+  cy.on("tap", "node.sysitem", (e) => {
+    const d = e.target.data();
+    cy.nodes(".note, .sysitem").addClass("dim");
+    e.target.removeClass("dim");
+    sysCb?.({ id: d.id, label: d.label, segment: d.segment,
+              meta: { beschreibung: d.beschreibung, pfad: d.pfad } });
+  });
   cy.on("tap", (e) => { if (e.target === cy) clearSelection(); });
 
-  function clearSelection() { cy.nodes(".note").removeClass("dim"); }
+  function clearSelection() { cy.nodes(".note, .sysitem").removeClass("dim"); }
 
   let laidOut = false;
   return {
@@ -216,6 +285,7 @@ export function initPie(
       guideCanvas.style.display = "none";
     },
     onNodeClick(cb) { nodeCb = cb; },
+    onSystemClick(cb) { sysCb = cb; },
     clearSelection,
   };
 }
