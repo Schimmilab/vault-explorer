@@ -9,6 +9,16 @@
   <body>
     <div id="app">
       <input id="search" placeholder="Suche im Vault …" autocomplete="off" />
+      <div id="controls">
+        <label class="ctl">Cluster-Ebene
+          <select id="cluster-depth">
+            <option value="1">Bereiche</option>
+            <option value="2" selected>Domänen</option>
+            <option value="3">Projekte</option>
+          </select>
+        </label>
+        <label class="ctl"><input type="checkbox" id="toggle-orphans" /> Isolierte Notizen</label>
+      </div>
       <div id="cy"></div>
       <aside id="inspector" class="hidden"></aside>
     </div>

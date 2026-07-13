@@ -30,6 +30,14 @@ async function boot() {
     }
   });
 
+  // Cluster-Ebene umschalten (Bereiche / Domänen / Projekte).
+  const depthSel = document.getElementById("cluster-depth") as HTMLSelectElement;
+  depthSel.addEventListener("change", () => graph.setClusterDepth(parseInt(depthSel.value, 10)));
+
+  // Isolierte Notizen (Orphans) ein-/ausblenden.
+  const orphanToggle = document.getElementById("toggle-orphans") as HTMLInputElement;
+  orphanToggle.addEventListener("change", () => graph.showOrphans(orphanToggle.checked));
+
   await initSearch(document.getElementById("search") as HTMLInputElement, (id) => {
     graph.focus(id);
     graph.flyTo(id);
