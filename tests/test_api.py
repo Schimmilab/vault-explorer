@@ -29,3 +29,30 @@ def test_graph(client):
     body = r.json()
     assert len(body["nodes"]) == 4
     assert any(e["broken"] for e in body["edges"])
+
+
+def test_note_returns_markdown(client):
+    r = client.get("/api/note/01-context/b.md")
+    assert r.status_code == 200
+    assert "Notiz B" in r.text
+
+
+def test_note_404_for_missing(client):
+    assert client.get("/api/note/nope.md").status_code == 404
+
+
+def test_note_blocks_path_traversal(client):
+    # Direkt die Schutzfunktion prüfen — httpx normalisiert ../ in der URL weg,
+    # ein HTTP-Test würde die Route verfehlen (404) statt den Schutz zu prüfen.
+    import server.app as appmod
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        appmod._safe_path("../../../etc/passwd")
+    assert exc.value.status_code == 403
+
+
+def test_search_index(client):
+    r = client.get("/api/search-index")
+    assert r.status_code == 200
+    ids = {d["id"] for d in r.json()}
+    assert "01-context/a.md" in ids
