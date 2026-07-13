@@ -182,9 +182,12 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
           opacity: 0.3,
           "curve-style": "straight",
           "target-arrow-shape": "none",
+          events: "no", // Kanten fangen keine Klicks ab → Knoten/Hüllen bleiben treffbar
         },
       },
-      { selector: ".faded", style: { opacity: 0.05, "text-opacity": 0 } },
+      // Beim Fokus: andere Knoten nur dimmen (noch sichtbar), irrelevante Kanten zurücknehmen.
+      { selector: "node.faded", style: { opacity: 0.28, "text-opacity": 0 } },
+      { selector: "edge.faded", style: { opacity: 0.05 } },
       {
         selector: "node.hl",
         style: {
