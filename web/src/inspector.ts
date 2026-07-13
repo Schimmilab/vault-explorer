@@ -1,8 +1,29 @@
 // web/src/inspector.ts
 import MarkdownIt from "markdown-it";
-import { getNote, openNote, GraphData } from "./api";
+import { getNote, openNote, GraphData, SystemItem } from "./api";
 
 const md = new MarkdownIt({ html: false, linkify: true });
+
+const SEG_TITLE: Record<string, string> = {
+  skills: "Skill", commands: "Command", memory: "Memory", mcps: "MCP", routines: "Routine",
+};
+
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Detailansicht für einen System-Ring-Eintrag (kein Vault-Note, daher kein
+ *  "In App öffnen" — die Quellen liegen teils außerhalb des Vaults). */
+export function renderSystemItem(el: HTMLElement, item: SystemItem): void {
+  const beschreibung = item.meta?.beschreibung ?? "";
+  const pfad = item.meta?.pfad ?? "";
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <h2>${esc(item.label)}</h2>
+    <div class="path">${SEG_TITLE[item.segment] ?? item.segment}</div>
+    ${beschreibung ? `<div class="preview">${md.render(beschreibung)}</div>` : ""}
+    ${pfad ? `<div class="path" style="margin-top:12px">${esc(pfad)}</div>` : ""}
+  `;
+}
 
 export function initInspector(
   el: HTMLElement, data: GraphData,

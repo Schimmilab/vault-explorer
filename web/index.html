@@ -10,21 +10,29 @@
     <div id="app">
       <input id="search" placeholder="Suche im Vault …" autocomplete="off" />
       <div id="controls">
-        <label class="ctl">Cluster-Ebene
-          <select id="cluster-depth">
-            <option value="1">Bereiche</option>
-            <option value="2" selected>Domänen</option>
-            <option value="3">Projekte</option>
-          </select>
-        </label>
-        <label class="ctl"><input type="checkbox" id="toggle-orphans" /> Isolierte Notizen</label>
-        <label class="ctl">Kompaktheit (<span id="compact-scope">alle</span>)
-          <input type="range" id="compaction" min="25" max="120" value="62" />
-        </label>
-        <button id="relayout" title="Gespeicherte Anordnung dieser Ebene verwerfen und neu berechnen">↺ Neu anordnen</button>
+        <div id="mode-switch">
+          <button id="mode-graph" class="active">Graph</button>
+          <button id="mode-ring">System-Ring</button>
+        </div>
+        <div id="graph-controls">
+          <label class="ctl">Cluster-Ebene
+            <select id="cluster-depth">
+              <option value="1">Bereiche</option>
+              <option value="2" selected>Domänen</option>
+              <option value="3">Projekte</option>
+            </select>
+          </label>
+          <label class="ctl"><input type="checkbox" id="toggle-orphans" /> Isolierte Notizen</label>
+          <label class="ctl">Kompaktheit (<span id="compact-scope">alle</span>)
+            <input type="range" id="compaction" min="25" max="120" value="62" />
+          </label>
+          <button id="relayout" title="Gespeicherte Anordnung dieser Ebene verwerfen und neu berechnen">↺ Neu anordnen</button>
+        </div>
       </div>
       <canvas id="hulls"></canvas>
       <div id="cy"></div>
+      <canvas id="ring-guides" style="display:none"></canvas>
+      <div id="ring" style="display:none"></div>
       <aside id="inspector" class="hidden"></aside>
     </div>
     <script type="module" src="/src/main.ts"></script>

@@ -4,6 +4,15 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
   font: 14px/1.5 system-ui, sans-serif; }
 #hulls { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
 #cy { position: absolute; inset: 0; z-index: 2; }
+#ring-guides { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+#ring { position: absolute; inset: 0; z-index: 2; }
+#mode-switch { display: flex; gap: 0; margin-bottom: 4px; }
+#mode-switch button { flex: 1; padding: 5px 10px; font-size: 12px; border: 1px solid #2a2f3a;
+  background: #12161d; color: #8a94a6; cursor: pointer; }
+#mode-switch button:first-child { border-radius: 6px 0 0 6px; border-right: none; }
+#mode-switch button:last-child { border-radius: 0 6px 6px 0; }
+#mode-switch button.active { background: #263041; color: #e6e6e6; }
+#graph-controls { display: flex; flex-direction: column; gap: 8px; }
 #search { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
   z-index: 10; width: 380px; max-width: 80vw; padding: 8px 12px; border-radius: 8px;
   border: 1px solid #2a2f3a; background: #171b22; color: #e6e6e6; }

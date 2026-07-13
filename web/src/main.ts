@@ -1,8 +1,9 @@
 // web/src/main.ts
-import { getGraph } from "./api";
+import { getGraph, getSystem } from "./api";
 import { initGraph } from "./graph";
 import { initHulls } from "./hulls";
-import { initInspector } from "./inspector";
+import { initInspector, renderSystemItem } from "./inspector";
+import { initRing } from "./ring";
 import { initSearch } from "./search";
 
 async function boot() {
@@ -56,13 +57,48 @@ async function boot() {
   const relayoutBtn = document.getElementById("relayout") as HTMLButtonElement;
   relayoutBtn.addEventListener("click", () => graph.relayout());
 
-  await initSearch(document.getElementById("search") as HTMLInputElement, (id) => {
+  const searchEl = document.getElementById("search") as HTMLInputElement;
+  await initSearch(searchEl, (id) => {
     graph.focus(id);
     graph.flyTo(id);
     inspect(id);
   });
 
+  // System-Ring: zweiter Modus. Lazy — Daten erst beim ersten Wechsel holen.
+  const ring = initRing(
+    document.getElementById("ring")!,
+    document.getElementById("ring-guides") as HTMLCanvasElement,
+    await getSystem(),
+  );
+  ring.onItemClick((item) => renderSystemItem(inspectorEl, item));
+  // Klick auf leere Ringfläche → Inspektor schließen (wie im Graph-Modus).
+  ring.cy.on("tap", (e) => {
+    if (e.target === ring.cy) inspectorEl.classList.add("hidden");
+  });
+
+  const modeGraphBtn = document.getElementById("mode-graph") as HTMLButtonElement;
+  const modeRingBtn = document.getElementById("mode-ring") as HTMLButtonElement;
+  const graphControls = document.getElementById("graph-controls")!;
+  const cyEl = document.getElementById("cy")!;
+  const hullsEl = document.getElementById("hulls")!;
+
+  function setMode(mode: "graph" | "ring") {
+    const isRing = mode === "ring";
+    modeGraphBtn.classList.toggle("active", !isRing);
+    modeRingBtn.classList.toggle("active", isRing);
+    graphControls.style.display = isRing ? "none" : "";
+    searchEl.style.display = isRing ? "none" : "";
+    cyEl.style.display = isRing ? "none" : "";
+    hullsEl.style.display = isRing ? "none" : "";
+    inspectorEl.classList.add("hidden");
+    if (isRing) { ring.show(); ring.clearSelection(); }
+    else { ring.hide(); graph.cy.resize(); }
+  }
+  modeGraphBtn.addEventListener("click", () => setMode("graph"));
+  modeRingBtn.addEventListener("click", () => setMode("ring"));
+
   (window as any).__graph = graph;
+  (window as any).__ring = ring;
   (window as any).__data = data;
 }
 boot().catch((e) => console.error(e));
