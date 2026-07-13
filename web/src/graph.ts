@@ -1,5 +1,5 @@
 // web/src/graph.ts
-import cytoscape, { Core, ElementDefinition } from "cytoscape";
+import cytoscape, { Core, ElementDefinition, NodeSingular } from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "./api";
 
@@ -7,87 +7,151 @@ cytoscape.use(fcose);
 
 export interface GraphController {
   cy: Core;
-  onNodeClick: (cb: (id: string, isArea: boolean) => void) => void;
+  onNodeClick: (cb: (id: string) => void) => void;
   flyTo: (id: string) => void;
-  expandArea: (area: string) => void;
-  collapseToAreas: () => void;
+  focus: (id: string) => void;
+  clearFocus: () => void;
 }
 
-/** Aggregiert Datei-Knoten zu einem Knoten je Bereich (Zoom-Ebene 0). */
-function areaElements(data: GraphData): ElementDefinition[] {
-  const counts = new Map<string, number>();
-  for (const n of data.nodes) counts.set(n.area, (counts.get(n.area) ?? 0) + 1);
-  return [...counts].map(([area, count]) => ({
-    data: { id: `area:${area}`, label: area, kind: "area", count },
+/** Distinkte Farbe je Bereich, gleichmäßig über den Farbkreis verteilt. */
+function areaColors(data: GraphData): Map<string, string> {
+  const areas = [...new Set(data.nodes.map((n) => n.area))].sort();
+  const m = new Map<string, string>();
+  areas.forEach((a, i) =>
+    m.set(a, `hsl(${Math.round((i / Math.max(areas.length, 1)) * 360)}, 62%, 58%)`),
+  );
+  return m;
+}
+
+/** Alle Notizen als Knoten (farbig nach Bereich) + alle internen Links als Kanten. */
+function allElements(data: GraphData, colors: Map<string, string>): ElementDefinition[] {
+  const ids = new Set(data.nodes.map((n) => n.id));
+  const els: ElementDefinition[] = data.nodes.map((n) => ({
+    data: {
+      id: n.id,
+      label: n.label,
+      area: n.area,
+      size: n.size,
+      color: colors.get(n.area) ?? "#6ea8fe",
+    },
   }));
+  for (const e of data.edges) {
+    if (ids.has(e.source) && ids.has(e.target)) {
+      els.push({ data: { id: `${e.source}=>${e.target}`, source: e.source, target: e.target } });
+    }
+  }
+  return els;
 }
 
 export function initGraph(container: HTMLElement, data: GraphData): GraphController {
+  const colors = areaColors(data);
   const cy = cytoscape({
     container,
-    elements: areaElements(data),
+    elements: allElements(data, colors),
     style: [
-      { selector: 'node[kind="area"]', style: {
-        label: "data(label)", color: "#e6e6e6", "font-size": 11,
-        "text-valign": "center", "text-halign": "center",
-        width: "mapData(count, 1, 200, 30, 120)",
-        height: "mapData(count, 1, 200, 30, 120)",
-        "background-color": "#2b3a55", "border-color": "#6ea8fe", "border-width": 2,
-      } },
-      { selector: "edge", style: {
-        "line-color": "#2a2f3a", width: 1, "curve-style": "straight",
-        opacity: 0.15, "target-arrow-shape": "none",
-      } },
-      { selector: ".dim", style: { opacity: 0.08 } },
-      { selector: ".hi", style: { opacity: 1, "line-color": "#6ea8fe", "border-color": "#6ea8fe" } },
+      {
+        selector: "node",
+        style: {
+          "background-color": "data(color)",
+          width: "mapData(size, 0, 40, 12, 48)",
+          height: "mapData(size, 0, 40, 12, 48)",
+          "border-width": 0,
+          label: "", // standardmäßig aus → saubere Wolke; erscheint bei Hover/Fokus
+          "font-size": 10,
+          color: "#eef2f8",
+          "text-outline-color": "#0e1116",
+          "text-outline-width": 2,
+          "text-valign": "center",
+          "text-halign": "center",
+        },
+      },
+      {
+        selector: "edge",
+        style: {
+          "line-color": "#39404e",
+          width: 1,
+          opacity: 0.14,
+          "curve-style": "straight",
+          "target-arrow-shape": "none",
+        },
+      },
+      { selector: ".faded", style: { opacity: 0.05, "text-opacity": 0 } },
+      {
+        selector: "node.hl",
+        style: {
+          label: "data(label)",
+          opacity: 1,
+          "border-width": 2,
+          "border-color": "#eef2f8",
+          "z-index": 20,
+        },
+      },
+      {
+        selector: "edge.hl",
+        style: { "line-color": "#9db4d8", width: 1.6, opacity: 0.9, "z-index": 15 },
+      },
+      { selector: "node.pin", style: { "border-width": 3, "border-color": "#ffffff" } },
     ],
-    layout: { name: "circle", animate: false, fit: true, padding: 40 } as any,
+    layout: {
+      name: "fcose",
+      animate: false,
+      randomize: true,
+      fit: true,
+      padding: 50,
+      quality: "default",
+      nodeSeparation: 80,
+      idealEdgeLength: 55,
+      nodeRepulsion: 6000,
+    } as any,
     wheelSensitivity: 0.2,
   });
 
-  // Container ist beim Init oft noch ungemessen (0×0); Layout ist wegen animate:false sofort fertig.
-  // Nach dem ersten Paint messen + sauber einpassen.
-  requestAnimationFrame(() => { cy.resize(); cy.fit(undefined, 40); });
+  // Container ist beim Init oft noch ungemessen (0×0) → nach erstem Paint sauber einpassen.
+  requestAnimationFrame(() => {
+    cy.resize();
+    cy.fit(undefined, 50);
+  });
 
-  /** Datei-Knoten + interne Kanten eines Bereichs (Zoom-Ebene 1). */
-  function fileElements(area: string): ElementDefinition[] {
-    const nodes = data.nodes.filter((n) => n.area === area);
-    const ids = new Set(nodes.map((n) => n.id));
-    const els: ElementDefinition[] = nodes.map((n) => ({
-      data: { id: n.id, label: n.label, kind: "note", area: n.area, size: n.size },
-    }));
-    for (const e of data.edges) {
-      if (ids.has(e.source) && ids.has(e.target)) {
-        els.push({ data: { id: `${e.source}->${e.target}`, source: e.source, target: e.target } });
-      }
-    }
-    return els;
+  let pinned: string | null = null;
+
+  function highlight(node: NodeSingular) {
+    const hood = node.closedNeighborhood(); // Knoten + verbundene Kanten + Nachbarknoten
+    cy.elements().addClass("faded");
+    hood.removeClass("faded").addClass("hl");
   }
+  function clear() {
+    cy.elements().removeClass("faded hl");
+  }
+
+  // Hover hebt die Nachbarschaft hervor (nur wenn nichts angepinnt ist).
+  cy.on("mouseover", "node", (e) => {
+    if (!pinned) highlight(e.target);
+  });
+  cy.on("mouseout", "node", () => {
+    if (!pinned) clear();
+  });
 
   const controller: GraphController = {
     cy,
-    onNodeClick: (cb) => cy.on("tap", "node", (e) => {
-      const d = e.target.data();
-      cb(d.id, d.kind === "area");
-    }),
+    onNodeClick: (cb) => cy.on("tap", "node", (e) => cb(e.target.id())),
     flyTo: (id) => {
       const el = cy.getElementById(id);
-      if (el.length) cy.animate({ center: { eles: el }, zoom: 1.5 }, { duration: 400 });
+      if (el.length) cy.animate({ center: { eles: el }, zoom: 1.4 }, { duration: 400 });
     },
-    expandArea: (area: string) => {
-      cy.elements().remove();
-      cy.add(fileElements(area));
-      cy.style().selector('node[kind="note"]').style({
-        label: "data(label)", "font-size": 8, color: "#cbd3e1",
-        "background-color": "#3a4a6b", "border-color": "#6ea8fe", "border-width": 1,
-        width: "mapData(size, 0, 30, 12, 46)", height: "mapData(size, 0, 30, 12, 46)",
-      }).update();
-      cy.layout({ name: "fcose", animate: true, idealEdgeLength: 60, fit: true, padding: 50 } as any).run();
+    // Persistentes Obsidian-Highlight: Knoten + Verbundene bleiben markiert, Rest gedimmt.
+    focus: (id) => {
+      const node = cy.getElementById(id);
+      if (!node.length) return;
+      pinned = id;
+      clear();
+      cy.nodes().removeClass("pin");
+      node.addClass("pin");
+      highlight(node as unknown as NodeSingular);
     },
-    collapseToAreas: () => {
-      cy.elements().remove();
-      cy.add(areaElements(data));
-      cy.layout({ name: "circle", animate: true, fit: true, padding: 40 } as any).run();
+    clearFocus: () => {
+      pinned = null;
+      clear();
+      cy.nodes().removeClass("pin");
     },
   };
   return controller;
