@@ -2,6 +2,7 @@
 import cytoscape, { Core, ElementDefinition, NodeSingular } from "cytoscape";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "./api";
+import { loadState, saveState, loadPositions, savePositions, clearPositions } from "./store";
 
 cytoscape.use(fcose);
 
@@ -15,6 +16,8 @@ export interface GraphController {
   setClusterDepth: (depth: number) => void;
   setCompaction: (value: number) => void;
   onSelectionChange: (cb: (name: string | null, value: number) => void) => void;
+  relayout: () => void;
+  initial: { depth: number; orphansShown: boolean; compaction: number };
 }
 
 /** Daily Logs (05-daily) gehören nicht in den Graph — verwässern nur die Struktur. */
@@ -23,7 +26,7 @@ const isDaily = (id: string, area: string) =>
 
 /** Cluster-Schlüssel je Notiz = Ordnerpfad bis zur gewählten Tiefe. */
 function clusterKey(id: string, depth: number): string {
-  const folders = id.split("/").slice(0, -1); // Dateinamen abschneiden
+  const folders = id.split("/").slice(0, -1);
   if (folders.length === 0) return "(root)";
   return folders.slice(0, depth).join("/");
 }
@@ -36,10 +39,7 @@ const MERGE_MIN = 4;
 /** Default-Kompaktheit (Slider-Wert); 100 = Layout-Abstand, kleiner = enger. */
 const DEFAULT_COMPACT = 62;
 
-/**
- * Distinkte Farbe je Cluster. Hue per Goldenem Winkel (137.5°) verteilt, damit
- * alphabetisch benachbarte Cluster klar verschiedene Farben bekommen.
- */
+/** Distinkte Farbe je Cluster, Hue per Goldenem Winkel verteilt. */
 function clusterColors(keys: string[]): Map<string, string> {
   const sorted = [...keys].sort();
   const m = new Map<string, string>();
@@ -54,8 +54,8 @@ function clusterColors(keys: string[]): Map<string, string> {
 /**
  * Baut die Cytoscape-Elemente: je Cluster eine Compound-Hülle (in Cluster-Farbe),
  * die Notizen als gleichfarbige Kinder darin, interne Links als Kanten. Daily Logs raus.
- * Kleine Cluster (< MERGE_MIN) werden in ihren Elternbereich (eine Ebene höher) gefaltet.
- * Knoten ohne jede Kante werden als `orphan` markiert (per Toggle ausblendbar).
+ * Kleine Cluster (< MERGE_MIN) werden in ihren Elternbereich gefaltet.
+ * Knoten ohne jede Kante werden als `orphan` markiert.
  */
 function buildElements(data: GraphData, depth: number): ElementDefinition[] {
   const notes = data.nodes.filter((n) => !isDaily(n.id, n.area));
@@ -69,7 +69,6 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
   }
   const isOrphan = (id: string) => (deg.get(id) ?? 0) === 0;
 
-  // Rohe Keys je Tiefe, dann kleine Cluster in den Elternbereich falten.
   const raw = new Map(notes.map((n) => [n.id, clusterKey(n.id, depth)]));
   const rawCount = new Map<string, number>();
   for (const k of raw.values()) rawCount.set(k, (rawCount.get(k) ?? 0) + 1);
@@ -79,7 +78,7 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
     let k = r;
     if (depth > 1 && (rawCount.get(r) ?? 0) < MERGE_MIN) {
       const parent = clusterKey(n.id, depth - 1);
-      if (parent !== r) k = parent; // eine Ebene höher zusammenfassen
+      if (parent !== r) k = parent;
     }
     keyOf.set(n.id, k);
   }
@@ -92,7 +91,6 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
 
   const els: ElementDefinition[] = [];
 
-  // Compound-Hüllen (Cluster) — ziehbar, damit man das ganze Cluster verschieben kann.
   for (const k of keys) {
     els.push({
       data: { id: clusterId(k), label: clusterLabel(k), color: colors.get(k) ?? "#6ea8fe" },
@@ -102,8 +100,6 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
     });
   }
 
-  // Notiz-Knoten — gleiche Farbe wie die Hülle. Einzeln ziehbar (frei umordnen);
-  // die Hülle bleibt zusätzlich als Ganzes ziehbar (ganzes Cluster verschieben).
   for (const n of notes) {
     const k = keyOf.get(n.id)!;
     els.push({
@@ -151,7 +147,7 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
       {
         selector: "node.area",
         style: {
-          "background-color": "data(color)", // gleiche Farbe wie die Kinder, nur transparent gefüllt
+          "background-color": "data(color)",
           "background-opacity": 0.05,
           "border-color": "data(color)",
           "border-width": 1.5,
@@ -169,7 +165,6 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
           "z-index": 1,
         },
       },
-      // Ausgewähltes Cluster (Slider wirkt dann nur auf dieses).
       {
         selector: "node.area.sel",
         style: { "border-width": 3, "border-opacity": 1, "background-opacity": 0.1 },
@@ -185,7 +180,6 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
           events: "no", // Kanten fangen keine Klicks ab → Knoten/Hüllen bleiben treffbar
         },
       },
-      // Beim Fokus: andere Knoten nur dimmen (noch sichtbar), irrelevante Kanten zurücknehmen.
       { selector: "node.faded", style: { opacity: 0.28, "text-opacity": 0 } },
       { selector: "edge.faded", style: { opacity: 0.05 } },
       {
@@ -205,17 +199,32 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     wheelSensitivity: 0.2,
   });
 
-  let depth = 2;
-  let orphansShown = false;
-  let pinned: string | null = null;
-
-  // Kompaktheit: pro Cluster (parent-id → Slider-Wert) + globaler Wert + Auswahl.
-  const compact = new Map<string, number>();
-  let globalCompact = DEFAULT_COMPACT;
-  let selected: string | null = null; // parent-id des gewählten Clusters
+  // Zustand aus localStorage laden (Handanordnung überlebt Reload + Server-Neustart).
+  const st = loadState();
+  let depth = st.depth ?? 2;
+  let orphansShown = st.orphansShown ?? false;
+  let globalCompact = st.globalCompact ?? DEFAULT_COMPACT;
+  const compact = new Map<string, number>(Object.entries(st.compact ?? {}));
+  let selected: string | null = null;
   let selCb: (name: string | null, value: number) => void = () => {};
+  let saveTimer = 0;
 
-  /** Zieht die Kinder eines Clusters um ratio zu ihrem Schwerpunkt zusammen (>1 = weiter). */
+  function persistPositions() {
+    const pos: Record<string, { x: number; y: number }> = {};
+    cy.nodes(".note").forEach((n) => {
+      const p = n.position();
+      pos[n.id()] = { x: Math.round(p.x), y: Math.round(p.y) };
+    });
+    savePositions(depth, pos);
+  }
+  function persistPositionsDebounced() {
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(persistPositions, 300);
+  }
+  function persistState() {
+    saveState({ depth, orphansShown, globalCompact, compact: Object.fromEntries(compact) });
+  }
+
   function scaleCluster(parent: NodeSingular, ratio: number) {
     if (ratio === 1) return;
     const kids = parent.children();
@@ -233,48 +242,82 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     );
   }
 
+  /** Neuer Knoten ohne gespeicherte Position: nahe den Geschwistern seines Clusters absetzen. */
+  function placeInCluster(n: NodeSingular) {
+    const sibs = n.parent().children().filter((c) => c.id() !== n.id() && c.position("x") !== 0);
+    if (!sibs.length) return;
+    let cx = 0;
+    let cyy = 0;
+    sibs.forEach((c) => {
+      cx += c.position("x");
+      cyy += c.position("y");
+    });
+    n.position({ x: cx / sibs.length + (Math.random() - 0.5) * 40, y: cyy / sibs.length + (Math.random() - 0.5) * 40 });
+  }
+
+  function finishLayout() {
+    if (orphansShown) cy.elements(".orphan").removeClass("off");
+    else cy.elements(".orphan").addClass("off");
+    cy.nodes(".area").removeClass("sel");
+    selected = null;
+    selCb(null, globalCompact);
+    requestAnimationFrame(() => {
+      cy.resize();
+      cy.fit(cy.elements(":visible"), 50);
+    });
+  }
+
   function render() {
     cy.elements().remove();
     cy.add(buildElements(data, depth));
-    pinned = null;
     selected = null;
 
-    const sameCluster = (edge: any) => {
-      const sp = edge.source().parent().id();
-      const tp = edge.target().parent().id();
-      return sp !== undefined && sp === tp;
-    };
-    const layout = cy.layout({
-      name: "fcose",
-      animate: false,
-      randomize: true,
-      quality: "proof",
-      nodeSeparation: 120,
-      nodeRepulsion: 20000,
-      idealEdgeLength: (edge: any) => (sameCluster(edge) ? 40 : 280),
-      edgeElasticity: (edge: any) => (sameCluster(edge) ? 0.5 : 0.05),
-      gravity: 0.06,
-      gravityCompound: 2.6,
-      gravityRangeCompound: 2.0,
-      packComponents: true,
-      tile: true,
-    } as any);
-    layout.one("layoutstop", () => {
-      if (!orphansShown) cy.elements(".orphan").addClass("off");
-      // Default-Kompaktheit anwenden (Layout = 100 → DEFAULT_COMPACT).
-      compact.clear();
-      cy.nodes(".area").forEach((p) => {
-        compact.set(p.id(), globalCompact);
-        scaleCluster(p as NodeSingular, globalCompact / 100);
+    const saved = loadPositions(depth);
+    const notes = cy.nodes(".note");
+    const covered = saved ? notes.filter((n) => saved[n.id()]).length : 0;
+
+    if (saved && notes.length > 0 && covered >= notes.length * 0.6) {
+      // Gespeicherte Anordnung wiederherstellen (kein Neu-Layout).
+      notes.forEach((n) => {
+        const p = saved[n.id()];
+        if (p) n.position(p);
       });
-      cy.nodes(".area").removeClass("sel");
-      selCb(null, globalCompact);
-      requestAnimationFrame(() => {
-        cy.resize();
-        cy.fit(cy.elements(":visible"), 50);
+      notes.forEach((n) => {
+        if (!saved[n.id()]) placeInCluster(n as NodeSingular);
       });
-    });
-    layout.run();
+      finishLayout();
+    } else {
+      const sameCluster = (edge: any) => {
+        const sp = edge.source().parent().id();
+        const tp = edge.target().parent().id();
+        return sp !== undefined && sp === tp;
+      };
+      const layout = cy.layout({
+        name: "fcose",
+        animate: false,
+        randomize: true,
+        quality: "proof",
+        nodeSeparation: 120,
+        nodeRepulsion: 20000,
+        idealEdgeLength: (edge: any) => (sameCluster(edge) ? 40 : 280),
+        edgeElasticity: (edge: any) => (sameCluster(edge) ? 0.5 : 0.05),
+        gravity: 0.06,
+        gravityCompound: 2.6,
+        gravityRangeCompound: 2.0,
+        packComponents: true,
+        tile: true,
+      } as any);
+      layout.one("layoutstop", () => {
+        cy.nodes(".area").forEach((p) => {
+          const v = compact.get(p.id()) ?? globalCompact;
+          compact.set(p.id(), v);
+          scaleCluster(p as NodeSingular, v / 100);
+        });
+        persistPositions();
+        finishLayout();
+      });
+      layout.run();
+    }
   }
 
   function highlight(node: NodeSingular) {
@@ -297,7 +340,8 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     }
   }
 
-  // Handler einmal delegiert an cy binden → überleben das Neu-Rendern beim Ebenenwechsel.
+  let pinned: string | null = null;
+
   cy.on("mouseover", "node.note", (e) => {
     if (!pinned) highlight(e.target);
   });
@@ -308,11 +352,14 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
   cy.on("tap", (e) => {
     if (e.target === cy) selectCluster(null);
   });
+  // Verschieben (Knoten oder ganze Hülle) → Anordnung speichern.
+  cy.on("dragfree", "node", () => persistPositions());
 
   render();
 
   const controller: GraphController = {
     cy,
+    initial: { depth, orphansShown, compaction: globalCompact },
     onNodeClick: (cb) => cy.on("tap", "node.note", (e) => cb(e.target.id())),
     flyTo: (id) => {
       const el = cy.getElementById(id);
@@ -339,12 +386,13 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
       const orphans = cy.elements(".orphan");
       if (show) orphans.removeClass("off");
       else orphans.addClass("off");
+      persistState();
     },
     setClusterDepth: (d) => {
       depth = d;
       render();
+      persistState();
     },
-    // Kompaktheit setzen: auf das gewählte Cluster, sonst global auf alle.
     setCompaction: (value) => {
       if (selected) {
         const p = cy.getElementById(selected) as unknown as NodeSingular;
@@ -359,9 +407,19 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
           compact.set(p.id(), value);
         });
       }
+      persistPositionsDebounced();
+      persistState();
     },
     onSelectionChange: (cb) => {
       selCb = cb;
+    },
+    // Gespeicherte Anordnung dieser Ebene verwerfen und frisch layouten.
+    relayout: () => {
+      clearPositions(depth);
+      compact.clear();
+      globalCompact = DEFAULT_COMPACT;
+      render();
+      persistState();
     },
   };
   return controller;

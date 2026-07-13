@@ -30,22 +30,29 @@ async function boot() {
     }
   });
 
-  // Cluster-Ebene umschalten (Bereiche / Domänen / Projekte).
+  // Controls auf den gespeicherten Zustand setzen (Anordnung wurde aus localStorage geladen).
   const depthSel = document.getElementById("cluster-depth") as HTMLSelectElement;
+  depthSel.value = String(graph.initial.depth);
   depthSel.addEventListener("change", () => graph.setClusterDepth(parseInt(depthSel.value, 10)));
 
   // Isolierte Notizen (Orphans) ein-/ausblenden.
   const orphanToggle = document.getElementById("toggle-orphans") as HTMLInputElement;
+  orphanToggle.checked = graph.initial.orphansShown;
   orphanToggle.addEventListener("change", () => graph.showOrphans(orphanToggle.checked));
 
   // Kompaktheit: Regler wirkt auf das angeklickte Cluster, sonst auf alle.
   const compaction = document.getElementById("compaction") as HTMLInputElement;
   const scope = document.getElementById("compact-scope") as HTMLSpanElement;
+  compaction.value = String(graph.initial.compaction);
   compaction.addEventListener("input", () => graph.setCompaction(parseInt(compaction.value, 10)));
   graph.onSelectionChange((name, value) => {
     compaction.value = String(value);
     scope.textContent = name ?? "alle";
   });
+
+  // Neu anordnen: gespeicherte Anordnung der aktuellen Ebene verwerfen und frisch layouten.
+  const relayoutBtn = document.getElementById("relayout") as HTMLButtonElement;
+  relayoutBtn.addEventListener("click", () => graph.relayout());
 
   await initSearch(document.getElementById("search") as HTMLInputElement, (id) => {
     graph.focus(id);
