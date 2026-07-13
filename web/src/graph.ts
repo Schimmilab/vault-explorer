@@ -280,6 +280,7 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     requestAnimationFrame(() => {
       cy.resize();
       cy.fit(cy.elements(":visible"), 50);
+      applyLabelZoom();
     });
   }
 
@@ -371,6 +372,17 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
   });
   // Verschieben (Knoten oder ganze Hülle) → Anordnung speichern.
   cy.on("dragfree", "node", () => persistPositions());
+
+  // Cluster-Namen zoom-kompensiert: Schriftgröße invers zum Zoom → nahezu konstante
+  // Bildschirmgröße (rausgezoomt lesbar statt winzig, reingezoomt nicht überfüllend).
+  const LABEL_SCREEN_PX = 14;
+  function applyLabelZoom() {
+    cy.nodes(".area").style(
+      "font-size",
+      Math.max(5, Math.min(120, LABEL_SCREEN_PX / cy.zoom())),
+    );
+  }
+  cy.on("zoom", applyLabelZoom);
 
   render();
 
