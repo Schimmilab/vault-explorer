@@ -167,6 +167,17 @@ export function initRing(
   cy.on("render pan zoom", scheduleDraw);
   window.addEventListener("resize", resize);
 
+  // Labels zoom-kompensiert: Schriftgröße invers zum Zoom → nahezu konstante
+  // Bildschirmgröße (rausgezoomt gut lesbar, reingezoomt nicht überdimensioniert).
+  const ITEM_LABEL_PX = 13;
+  const SEG_LABEL_PX = 15;
+  function applyLabelZoom() {
+    const z = cy.zoom();
+    cy.nodes(".item").style("font-size", Math.max(6, Math.min(90, ITEM_LABEL_PX / z)));
+    cy.nodes(".seglabel").style("font-size", Math.max(7, Math.min(110, SEG_LABEL_PX / z)));
+  }
+  cy.on("zoom", applyLabelZoom);
+
   // Hover → Label des Knotens einblenden.
   cy.on("mouseover", "node.item", (e) => e.target.addClass("lbl"));
   cy.on("mouseout", "node.item", (e) => e.target.removeClass("lbl"));
@@ -192,6 +203,7 @@ export function initRing(
       cy.resize();
       resize();
       if (!laidOut) { cy.fit(undefined, 60); laidOut = true; }
+      applyLabelZoom();
       scheduleDraw();
     },
     hide() {
