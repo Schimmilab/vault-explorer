@@ -177,9 +177,9 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
       {
         selector: "edge",
         style: {
-          "line-color": "#39404e",
+          "line-color": "#7f8ba1",
           width: 1,
-          opacity: 0.13,
+          opacity: 0.3,
           "curve-style": "straight",
           "target-arrow-shape": "none",
         },
