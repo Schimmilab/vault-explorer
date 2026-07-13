@@ -9,6 +9,8 @@ export interface GraphController {
   cy: Core;
   onNodeClick: (cb: (id: string, isArea: boolean) => void) => void;
   flyTo: (id: string) => void;
+  expandArea: (area: string) => void;
+  collapseToAreas: () => void;
 }
 
 /** Aggregiert Datei-Knoten zu einem Knoten je Bereich (Zoom-Ebene 0). */
@@ -43,6 +45,21 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     wheelSensitivity: 0.2,
   });
 
+  /** Datei-Knoten + interne Kanten eines Bereichs (Zoom-Ebene 1). */
+  function fileElements(area: string): ElementDefinition[] {
+    const nodes = data.nodes.filter((n) => n.area === area);
+    const ids = new Set(nodes.map((n) => n.id));
+    const els: ElementDefinition[] = nodes.map((n) => ({
+      data: { id: n.id, label: n.label, kind: "note", area: n.area, size: n.size },
+    }));
+    for (const e of data.edges) {
+      if (ids.has(e.source) && ids.has(e.target)) {
+        els.push({ data: { id: `${e.source}->${e.target}`, source: e.source, target: e.target } });
+      }
+    }
+    return els;
+  }
+
   const controller: GraphController = {
     cy,
     onNodeClick: (cb) => cy.on("tap", "node", (e) => {
@@ -52,6 +69,21 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     flyTo: (id) => {
       const el = cy.getElementById(id);
       if (el.length) cy.animate({ center: { eles: el }, zoom: 1.5 }, { duration: 400 });
+    },
+    expandArea: (area: string) => {
+      cy.elements().remove();
+      cy.add(fileElements(area));
+      cy.style().selector('node[kind="note"]').style({
+        label: "data(label)", "font-size": 8, color: "#cbd3e1",
+        "background-color": "#3a4a6b", "border-color": "#6ea8fe", "border-width": 1,
+        width: "mapData(size, 0, 30, 12, 46)", height: "mapData(size, 0, 30, 12, 46)",
+      }).update();
+      cy.layout({ name: "fcose", animate: true, idealEdgeLength: 60 } as any).run();
+    },
+    collapseToAreas: () => {
+      cy.elements().remove();
+      cy.add(areaElements(data));
+      cy.layout({ name: "fcose", animate: true, idealEdgeLength: 120 } as any).run();
     },
   };
   return controller;
