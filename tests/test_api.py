@@ -56,3 +56,17 @@ def test_search_index(client):
     assert r.status_code == 200
     ids = {d["id"] for d in r.json()}
     assert "01-context/a.md" in ids
+
+
+def test_open_invokes_opener(client, monkeypatch):
+    calls = []
+    import server.app as appmod
+    monkeypatch.setattr(appmod.subprocess, "Popen", lambda args, **k: calls.append(args))
+    r = client.post("/api/open", json={"id": "01-context/a.md"})
+    assert r.status_code == 200
+    assert len(calls) == 1
+    assert calls[0][-1].endswith("01-context/a.md")
+
+
+def test_open_404_missing(client):
+    assert client.post("/api/open", json={"id": "nope.md"}).status_code == 404

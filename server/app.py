@@ -1,8 +1,11 @@
 """FastAPI-Server: liefert Graph-, Such-, System- und Notiz-Daten read-only."""
+import subprocess
+import sys
 from dataclasses import asdict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 
 import config
 from indexer.vault import build_graph
@@ -49,3 +52,15 @@ def note(note_id: str):
 @app.get("/api/search-index")
 def search_index():
     return build_docs(config.VAULT_ROOT, _graph())
+
+
+class OpenReq(BaseModel):
+    id: str
+
+
+@app.post("/api/open")
+def open_file(req: OpenReq):
+    target = _safe_path(req.id)  # 403/404 wie bei /api/note
+    opener = "open" if sys.platform == "darwin" else "xdg-open"
+    subprocess.Popen([opener, str(target)])
+    return {"opened": req.id}
