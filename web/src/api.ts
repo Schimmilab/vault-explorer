@@ -24,3 +24,13 @@ export const getNote = async (id: string) =>
 export const openNote = (id: string) =>
   fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }) });
+
+// System-Ring-Dateien (Skill/Command/Memory) read-only vorschauen + öffnen.
+export const getSystemFile = async (path: string): Promise<string> => {
+  const r = await fetch(`/api/system-file?path=${encodeURIComponent(path)}`);
+  if (!r.ok) throw new Error(`system-file → ${r.status}`);
+  return r.text();
+};
+export const openSystemFile = (path: string) =>
+  fetch("/api/open-system", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }) });

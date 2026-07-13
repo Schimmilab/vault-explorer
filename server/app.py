@@ -2,6 +2,7 @@
 import subprocess
 import sys
 from dataclasses import asdict
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -20,6 +21,24 @@ def _graph():
     if "graph" not in _cache:
         _cache["graph"] = build_graph(config.VAULT_ROOT)
     return _cache["graph"]
+
+
+def _system():
+    if "system" not in _cache:
+        _cache["system"] = build_system()
+    return _cache["system"]
+
+
+def _known_system_paths() -> set[str]:
+    """Whitelist: nur Dateien, die der Ring tatsächlich kennt, dürfen gelesen/
+    geöffnet werden — kein beliebiger Dateizugriff über die System-Endpoints."""
+    paths: set[str] = set()
+    for items in _system()["segments"].values():
+        for it in items:
+            p = it.get("meta", {}).get("pfad")
+            if p:
+                paths.add(p)
+    return paths
 
 
 @app.get("/api/health")
@@ -57,7 +76,32 @@ def search_index():
 
 @app.get("/api/system")
 def system():
-    return build_system()
+    return _system()
+
+
+@app.get("/api/system-file", response_class=PlainTextResponse)
+def system_file(path: str):
+    """Read-only Vorschau einer System-Ring-Datei (Skill/Command/Memory).
+    Nur Pfade aus der Ring-Whitelist; sonst 403."""
+    if path not in _known_system_paths():
+        raise HTTPException(status_code=403, detail="unknown system path")
+    p = Path(path)
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="not found")
+    return p.read_text(encoding="utf-8", errors="replace")
+
+
+class OpenPathReq(BaseModel):
+    path: str
+
+
+@app.post("/api/open-system")
+def open_system(req: OpenPathReq):
+    if req.path not in _known_system_paths():
+        raise HTTPException(status_code=403, detail="unknown system path")
+    opener = "open" if sys.platform == "darwin" else "xdg-open"
+    subprocess.Popen([opener, req.path])
+    return {"opened": req.path}
 
 
 class OpenReq(BaseModel):

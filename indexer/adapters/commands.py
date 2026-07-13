@@ -1,17 +1,30 @@
 """Segment 'commands': *.md in ~/.claude/commands/ (und optional weiteren Wurzeln)."""
 from pathlib import Path
 
+import frontmatter
 
-def _first_line(md: Path) -> str:
+
+def _describe(md: Path) -> str:
+    """Kurzbeschreibung: description-Frontmatter → erste Blockquote-Zeile (> …,
+    so schreiben die ki-os-Commands ihre Kurzbeschreibung) → erste Prosa-Zeile."""
     try:
-        for line in md.read_text(encoding="utf-8", errors="replace").splitlines():
-            s = line.strip().lstrip("#").strip()
-            if s.startswith(">"):
-                s = s[1:].strip()
-            if s:
-                return s
+        post = frontmatter.load(md)
+        if post.metadata.get("description"):
+            return str(post.metadata["description"])
+        lines = post.content.splitlines()
     except Exception:
-        pass
+        try:
+            lines = md.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            return ""
+    for line in lines:
+        s = line.strip()
+        if s.startswith(">"):
+            return s.lstrip(">").strip()
+    for line in lines:
+        s = line.strip()
+        if s and not s.startswith("#"):
+            return s
     return ""
 
 
@@ -26,7 +39,7 @@ def _scan(cmd_dir: Path, out: list[dict], seen: set[str]) -> None:
             "id": f"command:{md.stem}",
             "label": md.stem,
             "segment": "commands",
-            "meta": {"beschreibung": _first_line(md), "pfad": str(md)},
+            "meta": {"beschreibung": _describe(md), "pfad": str(md)},
         })
 
 

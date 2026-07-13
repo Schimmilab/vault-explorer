@@ -79,3 +79,40 @@ def test_system_endpoint(client):
     assert "segments" in body
     assert "counts" in body
     assert set(body["segments"]) == {"skills", "commands", "memory", "mcps", "routines"}
+
+
+def _first_system_path(client) -> str | None:
+    for seg in client.get("/api/system").json()["segments"].values():
+        for it in seg:
+            if it["meta"].get("pfad"):
+                return it["meta"]["pfad"]
+    return None
+
+
+def test_system_file_returns_content(client):
+    path = _first_system_path(client)
+    assert path is not None
+    r = client.get("/api/system-file", params={"path": path})
+    assert r.status_code == 200
+    assert len(r.text) > 0
+
+
+def test_system_file_blocks_unknown_path(client):
+    r = client.get("/api/system-file", params={"path": "/etc/passwd"})
+    assert r.status_code == 403
+
+
+def test_open_system_blocks_unknown_path(client):
+    r = client.post("/api/open-system", json={"path": "/etc/passwd"})
+    assert r.status_code == 403
+
+
+def test_open_system_invokes_opener(client, monkeypatch):
+    path = _first_system_path(client)
+    assert path is not None
+    calls = []
+    import server.app as appmod
+    monkeypatch.setattr(appmod.subprocess, "Popen", lambda args, **k: calls.append(args))
+    r = client.post("/api/open-system", json={"path": path})
+    assert r.status_code == 200
+    assert calls and calls[0][-1] == path

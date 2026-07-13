@@ -36,6 +36,7 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #inspector h2 { font-size: 16px; margin-bottom: 8px; }
 #inspector .path { color: #8a94a6; font-size: 12px; margin-bottom: 12px; word-break: break-all; }
 #inspector a { color: #6ea8fe; cursor: pointer; }
+#inspector .desc { margin: 8px 0 12px; color: #c7cfdb; }
 #inspector .preview { margin-top: 12px; border-top: 1px solid #2a2f3a; padding-top: 12px; }
 #inspector button { margin-top: 12px; padding: 6px 12px; border-radius: 6px;
   border: 1px solid #2a2f3a; background: #1d2530; color: #e6e6e6; cursor: pointer; }
