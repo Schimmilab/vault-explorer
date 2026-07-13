@@ -28,6 +28,9 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #controls button { margin-top: 2px; align-self: flex-start; padding: 5px 10px; font-size: 12px;
   border-radius: 6px; border: 1px solid #2a2f3a; background: #1d2530; color: #c7cfdb; cursor: pointer; }
 #controls button:hover { background: #263041; }
+#minimap { position: absolute; left: 16px; bottom: 16px; z-index: 9;
+  width: 200px; height: 150px; border: 1px solid #2a2f3a; border-radius: 8px;
+  background: rgba(18, 22, 29, 0.82); cursor: pointer; }
 #inspector { position: absolute; top: 0; right: 0; z-index: 10; height: 100%;
   width: 380px; max-width: 90vw; padding: 20px; overflow-y: auto;
   background: #12161d; border-left: 1px solid #2a2f3a;

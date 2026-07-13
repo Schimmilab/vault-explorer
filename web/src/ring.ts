@@ -1,13 +1,13 @@
 // web/src/ring.ts
-// Zweiter View-Modus: der "System-Ring". Zeigt das operative System um den Vault
-// herum — Skills, Commands, Memory, MCPs, Routines — als konzentrische Ringe um
-// eine zentrale Nabe ("KI-OS"). Eigene Cytoscape-Instanz mit fest berechneten
-// Positionen (preset), damit jeder Ring sauber kreisförmig sitzt. Faint Guide-
-// Kreise auf einem Canvas dahinter machen auch dünn besetzte Ringe als Ring lesbar.
+// Zweiter View-Modus: das "System-Rad". Zeigt das operative System um den Vault
+// — Skills, Commands, Memory, MCPs, Routines — als Kuchendiagramm: jeder Bereich
+// ist ein Tortenstück (Winkel proportional zur Eintragszahl), die Einträge sind
+// radial von innen nach außen im Stück gepackt. Eigene Cytoscape-Instanz mit fest
+// berechneten Positionen (preset). Dezente radiale Trennlinien auf einem Canvas.
 import cytoscape, { Core } from "cytoscape";
 import type { SystemData, SystemItem } from "./api";
 
-/** Segment-Reihenfolge von innen nach außen + Farbe + Anzeigename. */
+/** Segment-Reihenfolge (im Uhrzeigersinn ab oben) + Farbe + Anzeigename. */
 const SEGMENTS: { key: string; color: string; title: string }[] = [
   { key: "skills", color: "#6ea8fe", title: "Skills" },
   { key: "commands", color: "#7ee787", title: "Commands" },
@@ -26,71 +26,72 @@ export interface RingController {
   clearSelection: () => void;
 }
 
-/** Ringradien so wählen, dass Punkte mind. MIN_ARC auseinander liegen und
- *  zwischen zwei Ringen mind. MIN_GAP Platz ist. Gibt Radius je nicht-leerem
- *  Segment zurück (leere Segmente bekommen keinen Ring). */
-function computeRadii(counts: Record<string, number>): Map<string, number> {
-  const MIN_ARC = 24; // Pixelabstand benachbarter Punkte auf einem Ring
-  const MIN_GAP = 96; // Abstand zwischen zwei Ringen
-  const BASE = 150;
-  const radii = new Map<string, number>();
-  let base = BASE;
-  for (const seg of SEGMENTS) {
-    const n = counts[seg.key] ?? 0;
-    if (n === 0) continue;
-    const needed = (n * MIN_ARC) / TAU;
-    const r = Math.max(base, needed);
-    radii.set(seg.key, r);
-    base = r + MIN_GAP;
-  }
-  return radii;
-}
-
 export function initRing(
   container: HTMLElement,
   guideCanvas: HTMLCanvasElement,
   data: SystemData,
 ): RingController {
-  const radii = computeRadii(data.counts);
-  const elements: cytoscape.ElementDefinition[] = [];
+  // --- Kuchen-Layout berechnen -------------------------------------------
+  const active = SEGMENTS.filter((s) => (data.counts[s.key] ?? 0) > 0);
+  const total = active.reduce((a, s) => a + (data.counts[s.key] ?? 0), 0) || 1;
+  const R0 = 74;        // innerer Radius um die Nabe
+  const NODE_GAP = 24;  // Ziel-Abstand benachbarter Knoten (Modell-px)
+  const ROW = 24;       // radialer Reihenabstand
+  const SEG_GAP = 0.06; // Winkel-Lücke zwischen zwei Stücken (rad)
 
-  // zentrale Nabe
-  elements.push({
+  const elements: cytoscape.ElementDefinition[] = [{
     data: { id: "sys::hub", label: "KI-OS" }, classes: "hub",
     position: { x: 0, y: 0 }, grabbable: false, selectable: false,
-  });
+  }];
 
-  for (const seg of SEGMENTS) {
-    const r = radii.get(seg.key);
-    if (r === undefined) continue;
+  const boundaries: number[] = []; // Trennlinien-Winkel zwischen den Stücken
+  let rMaxAll = R0;
+  let theta = -Math.PI / 2;         // Start oben (12 Uhr)
+
+  for (const seg of active) {
     const items = data.segments[seg.key] ?? [];
+    const dth = (TAU * items.length) / total;
+    boundaries.push(theta);
+    const a0 = theta + SEG_GAP / 2;
+    const a1 = theta + dth - SEG_GAP / 2;
+    const span = Math.max(0.001, a1 - a0);
 
-    // Segment-Beschriftung knapp außerhalb des Rings (in der Lücke zum nächsten),
-    // damit sie nicht die obersten Punkte überlagert.
+    // Einträge in radiale Reihen packen: pro Reihe passt floor(bogenlänge/gap).
+    const pos: { x: number; y: number }[] = [];
+    let placed = 0;
+    let r = R0;
+    while (placed < items.length) {
+      const perRow = Math.max(1, Math.floor((r * span) / NODE_GAP));
+      const n = Math.min(perRow, items.length - placed);
+      for (let j = 0; j < n; j++) {
+        const t = n === 1 ? (a0 + a1) / 2 : a0 + (span * (j + 0.5)) / n;
+        pos.push({ x: Math.cos(t) * r, y: Math.sin(t) * r });
+      }
+      placed += n;
+      r += ROW;
+    }
+    rMaxAll = Math.max(rMaxAll, r);
+
+    items.forEach((item, i) => elements.push({
+      data: {
+        id: item.id, label: item.label, segment: seg.key, color: seg.color,
+        beschreibung: item.meta?.beschreibung ?? "", pfad: item.meta?.pfad ?? "",
+      },
+      classes: "item",
+      position: pos[i], grabbable: false,
+    }));
+
+    // Segment-Beschriftung außen in der Winkelmitte des Stücks.
+    const mid = (a0 + a1) / 2;
+    const lr = r + 18;
     elements.push({
-      data: { id: `seg::${seg.key}`, label: `${seg.title} · ${items.length}`,
-              color: seg.color },
+      data: { id: `seg::${seg.key}`, label: `${seg.title} · ${items.length}`, color: seg.color },
       classes: "seglabel",
-      position: { x: 0, y: -(r + 22) }, grabbable: false, selectable: false,
+      position: { x: Math.cos(mid) * lr, y: Math.sin(mid) * lr },
+      grabbable: false, selectable: false,
     });
 
-    // Punkte gleichmäßig auf dem Ring; Startwinkel oben, damit sie das Label
-    // nicht überlagern (halber Schritt versetzt).
-    const step = TAU / Math.max(items.length, 1);
-    items.forEach((item, i) => {
-      const a = -Math.PI / 2 + step / 2 + i * step;
-      elements.push({
-        data: {
-          id: item.id, label: item.label,
-          segment: seg.key, color: seg.color,
-          beschreibung: item.meta?.beschreibung ?? "",
-          pfad: item.meta?.pfad ?? "",
-        },
-        classes: "item",
-        position: { x: Math.cos(a) * r, y: Math.sin(a) * r },
-        grabbable: false,
-      });
-    });
+    theta += dth;
   }
 
   const cy = cytoscape({
@@ -127,8 +128,7 @@ export function initRing(
     wheelSensitivity: 0.2,
   });
 
-  // Guide-Kreise: pro Ring ein blasser Kreis in Segmentfarbe, damit auch
-  // dünn besetzte Ringe klar als Ring erkennbar sind. Folgt Pan/Zoom.
+  // Radiale Trennlinien zwischen den Tortenstücken (dezent), folgt Pan/Zoom.
   const ctx = guideCanvas.getContext("2d")!;
   let dpr = window.devicePixelRatio || 1;
   function resize() {
@@ -146,14 +146,13 @@ export function initRing(
     if (hub.empty()) return;
     const c = hub.renderedPosition();
     const z = cy.zoom();
-    for (const seg of SEGMENTS) {
-      const r = radii.get(seg.key);
-      if (r === undefined) continue;
+    ctx.strokeStyle = "#3a4150";
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1;
+    for (const b of boundaries) {
       ctx.beginPath();
-      ctx.arc(c.x, c.y, r * z, 0, TAU);
-      ctx.strokeStyle = seg.color;
-      ctx.globalAlpha = 0.16;
-      ctx.lineWidth = 1.5;
+      ctx.moveTo(c.x + Math.cos(b) * R0 * 0.7 * z, c.y + Math.sin(b) * R0 * 0.7 * z);
+      ctx.lineTo(c.x + Math.cos(b) * (rMaxAll + 8) * z, c.y + Math.sin(b) * (rMaxAll + 8) * z);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -202,7 +201,7 @@ export function initRing(
       guideCanvas.style.display = "";
       cy.resize();
       resize();
-      if (!laidOut) { cy.fit(undefined, 60); laidOut = true; }
+      if (!laidOut) { cy.fit(undefined, 80); laidOut = true; }
       applyLabelZoom();
       scheduleDraw();
     },

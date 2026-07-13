@@ -4,6 +4,7 @@ import { initGraph } from "./graph";
 import { initHulls } from "./hulls";
 import { initInspector, renderSystemItem } from "./inspector";
 import { initRing } from "./ring";
+import { initMinimap } from "./minimap";
 import { initSearch } from "./search";
 
 async function boot() {
@@ -76,6 +77,10 @@ async function boot() {
     if (e.target === ring.cy) inspectorEl.classList.add("hidden");
   });
 
+  // Minimap: kleine Übersicht unten links, zeigt immer das aktive View.
+  const minimap = initMinimap(document.getElementById("minimap") as HTMLCanvasElement);
+  minimap.setCy(graph.cy);
+
   const modeGraphBtn = document.getElementById("mode-graph") as HTMLButtonElement;
   const modeRingBtn = document.getElementById("mode-ring") as HTMLButtonElement;
   const graphControls = document.getElementById("graph-controls")!;
@@ -91,8 +96,8 @@ async function boot() {
     cyEl.style.display = isRing ? "none" : "";
     hullsEl.style.display = isRing ? "none" : "";
     inspectorEl.classList.add("hidden");
-    if (isRing) { ring.show(); ring.clearSelection(); }
-    else { ring.hide(); graph.cy.resize(); }
+    if (isRing) { ring.show(); ring.clearSelection(); minimap.setCy(ring.cy); }
+    else { ring.hide(); graph.cy.resize(); minimap.setCy(graph.cy); }
   }
   modeGraphBtn.addEventListener("click", () => setMode("graph"));
   modeRingBtn.addEventListener("click", () => setMode("ring"));
