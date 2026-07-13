@@ -41,9 +41,13 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
       { selector: ".dim", style: { opacity: 0.08 } },
       { selector: ".hi", style: { opacity: 1, "line-color": "#6ea8fe", "border-color": "#6ea8fe" } },
     ],
-    layout: { name: "fcose", animate: true, idealEdgeLength: 120 } as any,
+    layout: { name: "circle", animate: false, fit: true, padding: 40 } as any,
     wheelSensitivity: 0.2,
   });
+
+  // Container ist beim Init oft noch ungemessen (0×0); Layout ist wegen animate:false sofort fertig.
+  // Nach dem ersten Paint messen + sauber einpassen.
+  requestAnimationFrame(() => { cy.resize(); cy.fit(undefined, 40); });
 
   /** Datei-Knoten + interne Kanten eines Bereichs (Zoom-Ebene 1). */
   function fileElements(area: string): ElementDefinition[] {
@@ -78,12 +82,12 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
         "background-color": "#3a4a6b", "border-color": "#6ea8fe", "border-width": 1,
         width: "mapData(size, 0, 30, 12, 46)", height: "mapData(size, 0, 30, 12, 46)",
       }).update();
-      cy.layout({ name: "fcose", animate: true, idealEdgeLength: 60 } as any).run();
+      cy.layout({ name: "fcose", animate: true, idealEdgeLength: 60, fit: true, padding: 50 } as any).run();
     },
     collapseToAreas: () => {
       cy.elements().remove();
       cy.add(areaElements(data));
-      cy.layout({ name: "fcose", animate: true, idealEdgeLength: 120 } as any).run();
+      cy.layout({ name: "circle", animate: true, fit: true, padding: 40 } as any).run();
     },
   };
   return controller;
