@@ -145,29 +145,23 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
         },
       },
       {
+        // Compound-Hülle selbst unsichtbar — den sichtbaren "Wolken"-Look zeichnet hulls.ts.
+        // Bleibt als Klick-/Zieh-Bereich (ganzes Cluster) + trägt das Label.
         selector: "node.area",
         style: {
-          "background-color": "data(color)",
-          "background-opacity": 0.05,
-          "border-color": "data(color)",
-          "border-width": 1.5,
-          "border-opacity": 0.6,
-          shape: "round-rectangle",
+          "background-opacity": 0,
+          "border-width": 0,
           label: "data(label)",
           "font-size": 14,
           "font-weight": "bold",
           color: "data(color)",
           "text-valign": "top",
           "text-halign": "center",
-          "text-margin-y": 2,
+          "text-margin-y": -8,
           "text-opacity": 0.9,
-          padding: 16,
+          padding: 12,
           "z-index": 1,
         },
-      },
-      {
-        selector: "node.area.sel",
-        style: { "border-width": 3, "border-opacity": 1, "background-opacity": 0.1 },
       },
       {
         selector: "edge",
@@ -194,6 +188,24 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
       },
       { selector: "edge.hl", style: { "line-color": "#9db4d8", width: 1.6, opacity: 0.9, "z-index": 20 } },
       { selector: "node.pin", style: { "border-width": 3, "border-color": "#ffffff" } },
+      // Zentraler Knoten (Hover/Klick): großer, hinterlegter Text → klar hervorgehoben.
+      {
+        selector: "node.center",
+        style: {
+          label: "data(label)",
+          "font-size": 19,
+          "font-weight": "bold",
+          color: "#ffffff",
+          "text-opacity": 1,
+          "text-background-color": "#0e1116",
+          "text-background-opacity": 0.72,
+          "text-background-padding": 3,
+          "text-background-shape": "round-rectangle",
+          "border-width": 3,
+          "border-color": "#ffffff",
+          "z-index": 50,
+        },
+      },
       { selector: ".off", style: { display: "none" } },
     ],
     wheelSensitivity: 0.2,
@@ -324,9 +336,10 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     const hood = node.closedNeighborhood();
     cy.elements("node.note, edge").addClass("faded");
     hood.removeClass("faded").addClass("hl");
+    node.addClass("center"); // der Knoten selbst hebt sich mit großem Text von den Nachbarn ab
   }
   function clear() {
-    cy.elements().removeClass("faded hl");
+    cy.elements().removeClass("faded hl center");
   }
 
   function selectCluster(parentId: string | null) {

@@ -1,6 +1,7 @@
 // web/src/main.ts
 import { getGraph } from "./api";
 import { initGraph } from "./graph";
+import { initHulls } from "./hulls";
 import { initInspector } from "./inspector";
 import { initSearch } from "./search";
 
@@ -8,6 +9,7 @@ async function boot() {
   const data = await getGraph();
   const container = document.getElementById("cy")!;
   const graph = initGraph(container, data);
+  initHulls(graph.cy); // zeichnet die Cluster-Wolken hinter den Knoten
 
   const inspectorEl = document.getElementById("inspector")!;
   const inspect = initInspector(inspectorEl, data, (targetId) => {

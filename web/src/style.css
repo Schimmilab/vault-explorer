@@ -2,7 +2,8 @@
 * { box-sizing: border-box; margin: 0; }
 html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
   font: 14px/1.5 system-ui, sans-serif; }
-#cy { position: absolute; inset: 0; }
+#hulls { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+#cy { position: absolute; inset: 0; z-index: 2; }
 #search { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
   z-index: 10; width: 380px; max-width: 80vw; padding: 8px 12px; border-radius: 8px;
   border: 1px solid #2a2f3a; background: #171b22; color: #e6e6e6; }
