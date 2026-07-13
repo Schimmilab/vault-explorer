@@ -2,6 +2,7 @@
 import { getGraph } from "./api";
 import { initGraph } from "./graph";
 import { initInspector } from "./inspector";
+import { initSearch } from "./search";
 
 async function boot() {
   const data = await getGraph();
@@ -10,7 +11,7 @@ async function boot() {
 
   graph.onNodeClick((id, isArea) => {
     if (isArea) graph.expandArea(id.replace(/^area:/, ""));
-    else (window as any).__inspect?.(id); // Inspektor kommt in Task 17
+    else (window as any).__inspect?.(id);
   });
   // Doppelklick auf leere Fläche → zurück zur Bereichsebene
   graph.cy.on("dbltap", (e) => { if (e.target === graph.cy) graph.collapseToAreas(); });
@@ -22,6 +23,17 @@ async function boot() {
     inspect(targetId);
   });
   (window as any).__inspect = inspect;
+
+  await initSearch(
+    document.getElementById("search") as HTMLInputElement,
+    (id) => {
+      const node = data.nodes.find((n) => n.id === id);
+      if (!node) return;
+      graph.expandArea(node.area);
+      graph.flyTo(id);
+      inspect(id);
+    },
+  );
 
   (window as any).__graph = graph; // für spätere Tasks
   (window as any).__data = data;
