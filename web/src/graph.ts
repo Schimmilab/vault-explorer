@@ -86,6 +86,21 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
   const keys = [...new Set(keyOf.values())];
   const colors = clusterColors(keys);
 
+  // Labels: normalerweise nur der Ordnername (letztes Segment). Kommt derselbe Name in
+  // mehreren Bereichen vor (z.B. "gesundheit" unter 04-projects UND 10-wissen), wird der
+  // übergeordnete Ordner zur Unterscheidung angehängt ("gesundheit · 10-wissen").
+  const lastCount = new Map<string, number>();
+  for (const k of keys) lastCount.set(clusterLabel(k), (lastCount.get(clusterLabel(k)) ?? 0) + 1);
+  const labelOf = new Map<string, string>();
+  for (const k of keys) {
+    const segs = k.split("/");
+    const last = segs[segs.length - 1];
+    labelOf.set(
+      k,
+      (lastCount.get(last) ?? 0) > 1 && segs.length > 1 ? `${last} · ${segs[segs.length - 2]}` : last,
+    );
+  }
+
   const hasConnected = new Map<string, boolean>(keys.map((k) => [k, false]));
   for (const n of notes) if (!isOrphan(n.id)) hasConnected.set(keyOf.get(n.id)!, true);
 
@@ -93,7 +108,7 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
 
   for (const k of keys) {
     els.push({
-      data: { id: clusterId(k), label: clusterLabel(k), color: colors.get(k) ?? "#6ea8fe" },
+      data: { id: clusterId(k), label: labelOf.get(k), color: colors.get(k) ?? "#6ea8fe" },
       classes: "area" + (hasConnected.get(k) ? "" : " orphan"),
       grabbable: true,
       selectable: false,
@@ -351,8 +366,9 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     selected = parentId;
     cy.nodes(".area").removeClass("sel");
     if (parentId) {
-      cy.getElementById(parentId).addClass("sel");
-      selCb(clusterLabel(parentId.replace("cl::", "")), compact.get(parentId) ?? globalCompact);
+      const node = cy.getElementById(parentId);
+      node.addClass("sel");
+      selCb(node.data("label"), compact.get(parentId) ?? globalCompact);
     } else {
       selCb(null, globalCompact);
     }
