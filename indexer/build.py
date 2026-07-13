@@ -7,6 +7,7 @@ import config
 from .vault import build_graph
 from .search import build_docs
 from .insights import orphans, hubs, dead_links
+from .system import build_system
 
 
 def build_all(vault_root: Path, out_dir: Path) -> dict:
@@ -29,9 +30,14 @@ def build_all(vault_root: Path, out_dir: Path) -> dict:
         ),
         encoding="utf-8",
     )
-    return {"nodes": len(graph.nodes), "edges": len(graph.edges)}
+    system = build_system(vault_root=vault_root)
+    (out_dir / "system.json").write_text(
+        json.dumps(system, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return {"nodes": len(graph.nodes), "edges": len(graph.edges), "system": system["counts"]}
 
 
 if __name__ == "__main__":
     stats = build_all(config.VAULT_ROOT, config.DATA_DIR)
     print(f"Indexed {stats['nodes']} nodes, {stats['edges']} edges → {config.DATA_DIR}")
+    print(f"System-Ring: {stats['system']}")

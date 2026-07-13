@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import config
 from indexer.vault import build_graph
 from indexer.search import build_docs
+from indexer.system import build_system
 
 app = FastAPI(title="Vault-Explorer")
 _cache: dict = {}
@@ -52,6 +53,11 @@ def note(note_id: str):
 @app.get("/api/search-index")
 def search_index():
     return build_docs(config.VAULT_ROOT, _graph())
+
+
+@app.get("/api/system")
+def system():
+    return build_system()
 
 
 class OpenReq(BaseModel):

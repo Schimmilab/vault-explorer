@@ -70,3 +70,12 @@ def test_open_invokes_opener(client, monkeypatch):
 
 def test_open_404_missing(client):
     assert client.post("/api/open", json={"id": "nope.md"}).status_code == 404
+
+
+def test_system_endpoint(client):
+    r = client.get("/api/system")
+    assert r.status_code == 200
+    body = r.json()
+    assert "segments" in body
+    assert "counts" in body
+    assert set(body["segments"]) == {"skills", "commands", "memory", "mcps", "routines"}
