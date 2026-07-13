@@ -86,7 +86,8 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
     });
   }
 
-  // Notiz-Knoten — nicht einzeln ziehbar (nur das Cluster als Ganzes), gleiche Farbe wie die Hülle.
+  // Notiz-Knoten — gleiche Farbe wie die Hülle. Einzeln ziehbar (frei umordnen);
+  // die Hülle bleibt zusätzlich als Ganzes ziehbar (ganzes Cluster verschieben).
   for (const n of notes) {
     const k = keyOf.get(n.id)!;
     els.push({
@@ -98,7 +99,7 @@ function buildElements(data: GraphData, depth: number): ElementDefinition[] {
         parent: clusterId(k),
       },
       classes: "note" + (isOrphan(n.id) ? " orphan" : ""),
-      grabbable: false,
+      grabbable: true,
     });
   }
 
@@ -188,16 +189,23 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     cy.elements().remove();
     cy.add(buildElements(data, depth));
     pinned = null;
+    // Kante innerhalb desselben Clusters? → kurz + straff; zwischen Clustern → lang + schwach.
+    const sameCluster = (edge: any) => {
+      const sp = edge.source().parent().id();
+      const tp = edge.target().parent().id();
+      return sp !== undefined && sp === tp;
+    };
     const layout = cy.layout({
       name: "fcose",
       animate: false,
       randomize: true,
-      quality: "default",
-      nodeSeparation: 110,
-      idealEdgeLength: 80,
-      nodeRepulsion: 12000,
-      gravity: 0.15, // niedrig → Cluster driften auseinander
-      gravityCompound: 1.6, // hoch → Kinder bleiben eng im Cluster
+      quality: "proof", // gründlicher → sauberere Cluster-Trennung
+      nodeSeparation: 130,
+      nodeRepulsion: 22000, // starke Abstoßung → Wolken drücken sich auseinander
+      idealEdgeLength: (edge: any) => (sameCluster(edge) ? 45 : 280),
+      edgeElasticity: (edge: any) => (sameCluster(edge) ? 0.45 : 0.05),
+      gravity: 0.06, // schwache Zentralgravitation → mehr Spread
+      gravityCompound: 2.4, // starke Cluster-Innengravitation → enge Wolken
       gravityRangeCompound: 2.0,
       packComponents: true,
       tile: true,
