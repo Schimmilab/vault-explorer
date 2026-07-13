@@ -38,6 +38,15 @@ async function boot() {
   const orphanToggle = document.getElementById("toggle-orphans") as HTMLInputElement;
   orphanToggle.addEventListener("change", () => graph.showOrphans(orphanToggle.checked));
 
+  // Kompaktheit: Regler wirkt auf das angeklickte Cluster, sonst auf alle.
+  const compaction = document.getElementById("compaction") as HTMLInputElement;
+  const scope = document.getElementById("compact-scope") as HTMLSpanElement;
+  compaction.addEventListener("input", () => graph.setCompaction(parseInt(compaction.value, 10)));
+  graph.onSelectionChange((name, value) => {
+    compaction.value = String(value);
+    scope.textContent = name ?? "alle";
+  });
+
   await initSearch(document.getElementById("search") as HTMLInputElement, (id) => {
     graph.focus(id);
     graph.flyTo(id);

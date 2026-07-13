@@ -13,6 +13,8 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #controls select { background: #0e1116; color: #e6e6e6; border: 1px solid #2a2f3a;
   border-radius: 6px; padding: 3px 6px; cursor: pointer; }
 #controls input { cursor: pointer; }
+#controls input[type="range"] { width: 130px; }
+#compact-scope { color: #9db4d8; }
 #inspector { position: absolute; top: 0; right: 0; z-index: 10; height: 100%;
   width: 380px; max-width: 90vw; padding: 20px; overflow-y: auto;
   background: #12161d; border-left: 1px solid #2a2f3a;
