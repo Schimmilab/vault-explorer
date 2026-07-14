@@ -1,4 +1,5 @@
 """FastAPI-Server: liefert Graph-, Such-, System- und Notiz-Daten read-only."""
+import os
 import subprocess
 import sys
 from dataclasses import asdict
@@ -67,11 +68,25 @@ def reload():
 def _safe_path(note_id: str):
     root = config.VAULT_ROOT.resolve()
     target = (root / note_id).resolve()
-    if not (target == root or str(target).startswith(str(root) + "/")):
+    # Plattform-neutrale Containment-Pruefung: NICHT per String-Prefix mit hartem "/"
+    # (auf Windows nutzt str(Path) "\\", so schlaegt der Prefix-Check immer fehl → 403 fuer
+    # jede Notiz). pathlib vergleicht Pfad-Komponenten und ist separator-agnostisch.
+    if target != root and root not in target.parents:
         raise HTTPException(status_code=403, detail="outside vault")
     if not target.exists():
         raise HTTPException(status_code=404, detail="not found")
     return target
+
+
+def _open_in_system(path: str) -> None:
+    """Datei im System-Standardprogramm oeffnen — plattform-korrekt.
+    Windows kennt kein xdg-open; dort os.startfile (der kanonische Weg)."""
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    elif sys.platform == "win32":
+        os.startfile(path)  # type: ignore[attr-defined]  # nur auf Windows vorhanden
+    else:
+        subprocess.Popen(["xdg-open", path])
 
 
 @app.get("/api/note/{note_id:path}", response_class=PlainTextResponse)
@@ -116,8 +131,7 @@ class OpenPathReq(BaseModel):
 def open_system(req: OpenPathReq):
     if req.path not in _known_system_paths():
         raise HTTPException(status_code=403, detail="unknown system path")
-    opener = "open" if sys.platform == "darwin" else "xdg-open"
-    subprocess.Popen([opener, req.path])
+    _open_in_system(req.path)
     return {"opened": req.path}
 
 
@@ -128,6 +142,5 @@ class OpenReq(BaseModel):
 @app.post("/api/open")
 def open_file(req: OpenReq):
     target = _safe_path(req.id)  # 403/404 wie bei /api/note
-    opener = "open" if sys.platform == "darwin" else "xdg-open"
-    subprocess.Popen([opener, str(target)])
+    _open_in_system(str(target))
     return {"opened": req.id}

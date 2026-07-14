@@ -1,5 +1,6 @@
 // web/src/graph.ts
 import cytoscape, { Core, ElementDefinition, NodeSingular } from "cytoscape";
+import { installWheelZoom } from "./wheelzoom";
 import fcose from "cytoscape-fcose";
 import type { GraphData } from "./api";
 import { loadState, saveState, loadPositions, savePositions, clearPositions } from "./store";
@@ -227,8 +228,11 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
       },
       { selector: ".off", style: { display: "none" } },
     ],
-    wheelSensitivity: 0.2,
+    // Wheel-/Pinch-Zoom übernimmt installWheelZoom (geräte-normalisiert: Trackpad + Maus).
+    userZoomingEnabled: false,
   });
+
+  installWheelZoom(cy);
 
   // Zustand aus localStorage laden (Handanordnung überlebt Reload + Server-Neustart).
   const st = loadState();

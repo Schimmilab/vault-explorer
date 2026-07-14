@@ -7,6 +7,7 @@
 //    äußerste Schicht zur "Außenwelt" — wie im System-Ring.
 // Filter wie im Graph: Cluster-Ebene (Bereiche/Domänen/Projekte) + Orphan-Toggle.
 import cytoscape, { Core, ElementDefinition } from "cytoscape";
+import { installWheelZoom } from "./wheelzoom";
 import type { GraphData, GraphNode, SystemData, SystemItem } from "./api";
 
 const TAU = Math.PI * 2;
@@ -257,8 +258,11 @@ export function initPie(
       }},
       { selector: "node.dim", style: { opacity: 0.15 } },
     ],
-    wheelSensitivity: 0.2,
+    // Wheel-/Pinch-Zoom übernimmt installWheelZoom (geräte-normalisiert: Trackpad + Maus).
+    userZoomingEnabled: false,
   });
+
+  installWheelZoom(cy);
 
   // Guides: begrenzte Kuchen-Trennlinien + Kreise für die äußeren System-Ringe.
   const ctx = guideCanvas.getContext("2d")!;

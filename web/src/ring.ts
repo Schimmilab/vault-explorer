@@ -5,6 +5,7 @@
 // Positionen (preset), damit jeder Ring sauber kreisförmig sitzt. Faint Guide-
 // Kreise auf einem Canvas dahinter machen auch dünn besetzte Ringe als Ring lesbar.
 import cytoscape, { Core } from "cytoscape";
+import { installWheelZoom } from "./wheelzoom";
 import type { SystemData, SystemItem } from "./api";
 
 /** Segment-Reihenfolge von innen nach außen + Farbe + Anzeigename. */
@@ -126,8 +127,11 @@ export function initRing(
       }},
       { selector: "node.dim", style: { opacity: 0.18 } },
     ],
-    wheelSensitivity: 0.2,
+    // Wheel-/Pinch-Zoom übernimmt installWheelZoom (geräte-normalisiert: Trackpad + Maus).
+    userZoomingEnabled: false,
   });
+
+  installWheelZoom(cy);
 
   // Guide-Kreise: pro Ring ein blasser Kreis in Segmentfarbe, damit auch
   // dünn besetzte Ringe klar als Ring erkennbar sind. Folgt Pan/Zoom.
