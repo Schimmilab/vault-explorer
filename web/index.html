@@ -30,6 +30,16 @@
           <button id="relayout" title="Gespeicherte Anordnung dieser Ebene verwerfen und neu berechnen">↺ Neu anordnen</button>
           <button id="toggle-insights" title="Wartung: isolierte Notizen, Hubs, tote Links">🔧 Wartung</button>
         </div>
+        <div id="pie-controls" style="display:none">
+          <label class="ctl">Cluster-Ebene
+            <select id="pie-depth">
+              <option value="1" selected>Bereiche</option>
+              <option value="2">Domänen</option>
+              <option value="3">Projekte</option>
+            </select>
+          </label>
+          <label class="ctl"><input type="checkbox" id="pie-orphans" checked /> Isolierte Notizen</label>
+        </div>
       </div>
       <canvas id="hulls"></canvas>
       <div id="cy"></div>

@@ -93,6 +93,14 @@ async function boot() {
     if (e.target === pie.cy) inspectorEl.classList.add("hidden");
   });
 
+  // Kuchen-Filter: Cluster-Ebene + isolierte Notizen (wie im Graph).
+  const pieDepth = document.getElementById("pie-depth") as HTMLSelectElement;
+  pieDepth.value = String(pie.initial.depth);
+  pieDepth.addEventListener("change", () => pie.setDepth(parseInt(pieDepth.value, 10)));
+  const pieOrphans = document.getElementById("pie-orphans") as HTMLInputElement;
+  pieOrphans.checked = pie.initial.orphansShown;
+  pieOrphans.addEventListener("change", () => pie.showOrphans(pieOrphans.checked));
+
   // Suche je Modus: Graph + Kuchen suchen Notizen, der System-Ring sucht System-Einträge.
   const systemIndex = buildSystemIndex(systemData);
   const sysById = new Map<string, SystemItem>();
@@ -138,6 +146,7 @@ async function boot() {
   const modePieBtn = document.getElementById("mode-pie") as HTMLButtonElement;
   const modeRingBtn = document.getElementById("mode-ring") as HTMLButtonElement;
   const graphControls = document.getElementById("graph-controls")!;
+  const pieControls = document.getElementById("pie-controls")!;
   const cyEl = document.getElementById("cy")!;
   const hullsEl = document.getElementById("hulls")!;
 
@@ -145,8 +154,9 @@ async function boot() {
     modeGraphBtn.classList.toggle("active", mode === "graph");
     modePieBtn.classList.toggle("active", mode === "pie");
     modeRingBtn.classList.toggle("active", mode === "ring");
-    // nur der Graph-View braucht seine Controls; die Suche gilt in allen Modi.
+    // Graph + Kuchen haben je eigene Filter-Controls; die Suche gilt in allen Modi.
     graphControls.style.display = mode === "graph" ? "" : "none";
+    pieControls.style.display = mode === "pie" ? "" : "none";
     cyEl.style.display = mode === "graph" ? "" : "none";
     hullsEl.style.display = mode === "graph" ? "" : "none";
     inspectorEl.classList.add("hidden");

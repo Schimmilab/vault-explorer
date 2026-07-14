@@ -1,16 +1,28 @@
 // web/src/pie.ts
 // Dritter View-Modus: "Kuchen" — vereint Vault-Inhalt und System in EINER Ansicht.
-//  • INNEN: Kuchendiagramm des Vault-Inhalts. Jeder Bereich (Top-Ordner) ist ein
-//    GLEICH BREITES Tortenstück; die radiale Länge variiert nach Dokumentenmenge.
+//  • INNEN: Kuchendiagramm des Vault-Inhalts. Jedes Cluster (Ordner bis zur
+//    gewählten Ebene) ist ein GLEICH BREITES Tortenstück; die radiale Länge
+//    variiert nach Dokumentenmenge.
 //  • AUSSEN: konzentrische System-Ringe (Skills → Commands → MCPs), MCPs als
 //    äußerste Schicht zur "Außenwelt" — wie im System-Ring.
-import cytoscape, { Core } from "cytoscape";
+// Filter wie im Graph: Cluster-Ebene (Bereiche/Domänen/Projekte) + Orphan-Toggle.
+import cytoscape, { Core, ElementDefinition } from "cytoscape";
 import type { GraphData, GraphNode, SystemData, SystemItem } from "./api";
 
 const TAU = Math.PI * 2;
 
 const isDaily = (id: string, area: string) =>
   area === "05-daily" || id.startsWith("05-daily/");
+
+/** Cluster-Schlüssel je Notiz = Ordnerpfad bis zur gewählten Tiefe (wie graph.ts). */
+function clusterKey(id: string, depth: number): string {
+  const folders = id.split("/").slice(0, -1);
+  if (folders.length === 0) return "(root)";
+  return folders.slice(0, depth).join("/");
+}
+const clusterLabelOf = (key: string) => key.split("/").pop() ?? key;
+/** Cluster mit weniger Notizen werden in ihren Elternbereich gefaltet (wie graph.ts). */
+const MERGE_MIN = 4;
 
 /** Äußere System-Ringe von innen nach außen (MCPs ganz außen = Außenwelt). */
 const SYS_RINGS: { key: string; color: string; title: string }[] = [
@@ -19,10 +31,10 @@ const SYS_RINGS: { key: string; color: string; title: string }[] = [
   { key: "mcps", color: "#d2a8ff", title: "MCPs" },
 ];
 
-/** Farbe je Bereich über den Goldenen Winkel → benachbarte Stücke gut trennbar. */
-function areaColors(areas: string[]): Map<string, string> {
+/** Farbe je Cluster über den Goldenen Winkel → benachbarte Stücke gut trennbar. */
+function areaColors(keys: string[]): Map<string, string> {
   const m = new Map<string, string>();
-  areas.forEach((a, i) => {
+  [...keys].sort().forEach((a, i) => {
     const hue = Math.round((i * 137.508) % 360);
     const sat = 58 + (i % 3) * 8;
     m.set(a, `hsl(${hue}, ${sat}%, 61%)`);
@@ -39,6 +51,11 @@ export interface PieController {
   /** Einen Eintrag (Notiz oder System-Item) zentrieren + markieren. false, wenn nicht vorhanden. */
   focus: (id: string) => boolean;
   clearSelection: () => void;
+  /** Cluster-Ebene setzen (1 = Bereiche, 2 = Domänen, 3 = Projekte) → Segmente neu bauen. */
+  setDepth: (depth: number) => void;
+  /** Isolierte Notizen (ohne Kante) ein-/ausblenden → Segmente neu bauen. */
+  showOrphans: (show: boolean) => void;
+  initial: { depth: number; orphansShown: boolean };
 }
 
 export function initPie(
@@ -47,106 +64,161 @@ export function initPie(
   data: GraphData,
   system: SystemData,
 ): PieController {
-  // Notizen nach Bereich gruppieren (Daily raus).
-  const byArea = new Map<string, GraphNode[]>();
-  for (const n of data.nodes) {
-    if (isDaily(n.id, n.area)) continue;
-    const arr = byArea.get(n.area);
-    if (arr) arr.push(n); else byArea.set(n.area, [n]);
+  // Nicht-Daily-Notizen + Orphan-Bestimmung aus den Kanten (wie im Graph).
+  const notes = data.nodes.filter((n) => !isDaily(n.id, n.area));
+  const noteIds = new Set(notes.map((n) => n.id));
+  const degree = new Map<string, number>();
+  for (const e of data.edges) {
+    if (noteIds.has(e.source) && noteIds.has(e.target)) {
+      degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+      degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+    }
   }
-  const areas = [...byArea.keys()].sort();
-  const colors = areaColors(areas);
+  const isOrphan = (id: string) => (degree.get(id) ?? 0) === 0;
+
+  let depth = 1;          // Bereiche (Top-Ordner) — wie bisher
+  let orphansShown = true;
 
   const R0 = 70;        // innerer Radius um die Nabe
   const NODE_GAP = 16;  // Ziel-Abstand benachbarter Knoten (Modell-px)
   const ROW = 16;       // radialer Reihenabstand
   const SEG_GAP = 0.05; // Winkel-Lücke zwischen zwei Stücken (rad)
-  const SEG_ANGLE = TAU / areas.length; // ALLE Segmente gleich breit
+  const RING_GAP = 54;
 
-  const elements: cytoscape.ElementDefinition[] = [{
-    data: { id: "pie::hub", label: "Vault" }, classes: "hub",
-    position: { x: 0, y: 0 }, grabbable: false, selectable: false,
-  }];
+  // Guide-Daten — bei jedem Rebuild neu gefüllt, von draw() gelesen.
+  let boundaries: number[] = [];
+  let segRmax: number[] = [];
+  let sysRadii: { key: string; color: string; r: number }[] = [];
 
-  const boundaries: number[] = []; // Grenzwinkel vor jedem Segment
-  const segRmax: number[] = [];    // Außenradius je Segment (parallel zu boundaries)
-  let rMaxAll = R0;
-  let theta = -Math.PI / 2;
-
-  for (const area of areas) {
-    const items = byArea.get(area)!;
-    boundaries.push(theta);
-    const a0 = theta + SEG_GAP / 2;
-    const a1 = theta + SEG_ANGLE - SEG_GAP / 2;
-    const span = Math.max(0.001, a1 - a0);
-    const color = colors.get(area)!;
-
-    const pos: { x: number; y: number }[] = [];
-    let placed = 0;
-    let r = R0;
-    while (placed < items.length) {
-      const perRow = Math.max(1, Math.floor((r * span) / NODE_GAP));
-      const n = Math.min(perRow, items.length - placed);
-      for (let j = 0; j < n; j++) {
-        const t = n === 1 ? (a0 + a1) / 2 : a0 + (span * (j + 0.5)) / n;
-        pos.push({ x: Math.cos(t) * r, y: Math.sin(t) * r });
-      }
-      placed += n;
-      r += ROW;
+  /** Sichtbare Notizen (optional ohne Orphans) nach Cluster-Key gruppieren,
+   *  kleine Cluster in den Elternbereich falten. */
+  function groupNotes(): Map<string, GraphNode[]> {
+    const visible = notes.filter((n) => orphansShown || !isOrphan(n.id));
+    const rawKey = new Map<string, string>();
+    const rawCount = new Map<string, number>();
+    for (const n of visible) {
+      const k = clusterKey(n.id, depth);
+      rawKey.set(n.id, k);
+      rawCount.set(k, (rawCount.get(k) ?? 0) + 1);
     }
-    segRmax.push(r);
-    rMaxAll = Math.max(rMaxAll, r);
-
-    items.forEach((it, i) => elements.push({
-      data: { id: it.id, label: it.label, area, color, deg: it.in_degree },
-      classes: "note", position: pos[i], grabbable: false,
-    }));
-
-    const mid = (a0 + a1) / 2;
-    const lr = r + 16;
-    elements.push({
-      data: { id: `area::${area}`, label: area, color },
-      classes: "arealabel",
-      position: { x: Math.cos(mid) * lr, y: Math.sin(mid) * lr },
-      grabbable: false, selectable: false,
-    });
-
-    theta += SEG_ANGLE;
+    const groups = new Map<string, GraphNode[]>();
+    for (const n of visible) {
+      let k = rawKey.get(n.id)!;
+      if (depth > 1 && (rawCount.get(k) ?? 0) < MERGE_MIN) {
+        const parent = clusterKey(n.id, depth - 1);
+        if (parent !== k) k = parent;
+      }
+      const arr = groups.get(k);
+      if (arr) arr.push(n); else groups.set(k, [n]);
+    }
+    return groups;
   }
 
-  // --- Äußere System-Ringe (Skills → Commands → MCPs) ---------------------
-  const RING_GAP = 54;
-  const sysRadii: { key: string; color: string; r: number }[] = [];
-  let ringR = rMaxAll + 54;
-  for (const sr of SYS_RINGS) {
-    const items = system.segments[sr.key] ?? [];
-    if (items.length === 0) continue;
-    sysRadii.push({ key: sr.key, color: sr.color, r: ringR });
+  /** Alle Kuchen- + System-Elemente + Guide-Daten für den aktuellen Filterzustand. */
+  function buildAll(): ElementDefinition[] {
+    const groups = groupNotes();
+    const keys = [...groups.keys()].sort();
+    const colors = areaColors(keys);
+    // Label: normal der letzte Ordnername; bei Namensgleichheit + Elternordner ("gesundheit · 10-wissen").
+    const lastCount = new Map<string, number>();
+    for (const k of keys) {
+      const l = clusterLabelOf(k);
+      lastCount.set(l, (lastCount.get(l) ?? 0) + 1);
+    }
+    const labelOf = (k: string) => {
+      const segs = k.split("/");
+      const last = segs[segs.length - 1];
+      return (lastCount.get(last) ?? 0) > 1 && segs.length > 1 ? `${last} · ${segs[segs.length - 2]}` : last;
+    };
 
-    const step = TAU / items.length;
-    items.forEach((item, i) => {
-      const a = -Math.PI / 2 + step / 2 + i * step;
+    boundaries = [];
+    segRmax = [];
+    sysRadii = [];
+
+    const elements: ElementDefinition[] = [{
+      data: { id: "pie::hub", label: "Vault" }, classes: "hub",
+      position: { x: 0, y: 0 }, grabbable: false, selectable: false,
+    }];
+
+    const SEG_ANGLE = TAU / Math.max(keys.length, 1); // ALLE Segmente gleich breit
+    let rMaxAll = R0;
+    let theta = -Math.PI / 2;
+
+    for (const key of keys) {
+      const items = groups.get(key)!;
+      boundaries.push(theta);
+      const a0 = theta + SEG_GAP / 2;
+      const a1 = theta + SEG_ANGLE - SEG_GAP / 2;
+      const span = Math.max(0.001, a1 - a0);
+      const color = colors.get(key)!;
+
+      const pos: { x: number; y: number }[] = [];
+      let placed = 0;
+      let r = R0;
+      while (placed < items.length) {
+        const perRow = Math.max(1, Math.floor((r * span) / NODE_GAP));
+        const n = Math.min(perRow, items.length - placed);
+        for (let j = 0; j < n; j++) {
+          const t = n === 1 ? (a0 + a1) / 2 : a0 + (span * (j + 0.5)) / n;
+          pos.push({ x: Math.cos(t) * r, y: Math.sin(t) * r });
+        }
+        placed += n;
+        r += ROW;
+      }
+      segRmax.push(r);
+      rMaxAll = Math.max(rMaxAll, r);
+
+      items.forEach((it, i) => elements.push({
+        data: { id: it.id, label: it.label, area: key, color, deg: it.in_degree },
+        classes: "note", position: pos[i], grabbable: false,
+      }));
+
+      const mid = (a0 + a1) / 2;
+      const lr = r + 16;
       elements.push({
-        data: {
-          id: item.id, label: item.label, segment: sr.key, color: sr.color,
-          beschreibung: item.meta?.beschreibung ?? "", pfad: item.meta?.pfad ?? "",
-        },
-        classes: "sysitem",
-        position: { x: Math.cos(a) * ringR, y: Math.sin(a) * ringR }, grabbable: false,
+        data: { id: `area::${key}`, label: labelOf(key), color },
+        classes: "arealabel",
+        position: { x: Math.cos(mid) * lr, y: Math.sin(mid) * lr },
+        grabbable: false, selectable: false,
       });
-    });
 
-    elements.push({
-      data: { id: `sysseg::${sr.key}`, label: `${sr.title} · ${items.length}`, color: sr.color },
-      classes: "seglabel",
-      position: { x: 0, y: -(ringR + 22) }, grabbable: false, selectable: false,
-    });
-    ringR += RING_GAP;
+      theta += SEG_ANGLE;
+    }
+
+    // --- Äußere System-Ringe (Skills → Commands → MCPs); Radius folgt rMaxAll --
+    let ringR = rMaxAll + 54;
+    for (const sr of SYS_RINGS) {
+      const sysItems = system.segments[sr.key] ?? [];
+      if (sysItems.length === 0) continue;
+      sysRadii.push({ key: sr.key, color: sr.color, r: ringR });
+
+      const step = TAU / sysItems.length;
+      sysItems.forEach((item, i) => {
+        const a = -Math.PI / 2 + step / 2 + i * step;
+        elements.push({
+          data: {
+            id: item.id, label: item.label, segment: sr.key, color: sr.color,
+            beschreibung: item.meta?.beschreibung ?? "", pfad: item.meta?.pfad ?? "",
+          },
+          classes: "sysitem",
+          position: { x: Math.cos(a) * ringR, y: Math.sin(a) * ringR }, grabbable: false,
+        });
+      });
+
+      elements.push({
+        data: { id: `sysseg::${sr.key}`, label: `${sr.title} · ${sysItems.length}`, color: sr.color },
+        classes: "seglabel",
+        position: { x: 0, y: -(ringR + 22) }, grabbable: false, selectable: false,
+      });
+      ringR += RING_GAP;
+    }
+
+    return elements;
   }
 
   const cy = cytoscape({
     container,
-    elements,
+    elements: buildAll(),
     layout: { name: "preset" },
     minZoom: 0.08, maxZoom: 3,
     style: [
@@ -284,6 +356,15 @@ export function initPie(
     return true;
   }
 
+  // Segmente für den aktuellen Filterzustand neu bauen (Ebene/Orphan-Toggle).
+  function rebuild() {
+    cy.elements().remove();
+    cy.add(buildAll());
+    cy.fit(undefined, 80);
+    applyLabelZoom();
+    scheduleDraw();
+  }
+
   let laidOut = false;
   return {
     cy,
@@ -304,5 +385,8 @@ export function initPie(
     onSystemClick(cb) { sysCb = cb; },
     focus,
     clearSelection,
+    setDepth(d) { if (d === depth) return; depth = d; rebuild(); },
+    showOrphans(show) { if (show === orphansShown) return; orphansShown = show; rebuild(); },
+    initial: { depth, orphansShown },
   };
 }
