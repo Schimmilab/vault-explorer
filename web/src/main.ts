@@ -64,7 +64,12 @@ async function boot() {
 
   const searchEl = document.getElementById("search") as HTMLInputElement;
   const search = initSearch(searchEl);
-  const noteIndex = await buildNoteIndex();
+  // Notiz-Index (~4 MB) wird lazy im Hintergrund gebaut, damit der UI-Start
+  // (Graph + Views) nicht auf das Fetchen + Indizieren wartet. Bis er bereit ist,
+  // liefert die Wrapper-Funktion keine Treffer (Ring-Suche funktioniert sofort,
+  // da sie aus den bereits geladenen System-Daten kommt).
+  let noteIndex: SearchIndex | null = null;
+  const noteSearch: SearchIndex = (q) => (noteIndex ? noteIndex(q) : []);
 
   const systemData = await getSystem();
 
@@ -112,12 +117,12 @@ async function boot() {
     { index: SearchIndex; onPick: (id: string, query: string) => void; placeholder: string }
   > = {
     graph: {
-      index: noteIndex,
+      index: noteSearch,
       onPick: (id, q) => { graph.focus(id); graph.flyTo(id); inspect(id, q); },
       placeholder: "Suche im Vault …",
     },
     pie: {
-      index: noteIndex,
+      index: noteSearch,
       onPick: (id, q) => { pie.focus(id); inspect(id, q); },
       placeholder: "Notiz im Kuchen suchen …",
     },
@@ -194,5 +199,14 @@ async function boot() {
   (window as any).__ring = ring;
   (window as any).__pie = pie;
   (window as any).__data = data;
+
+  // Erst wenn die UI steht: Notiz-Index im Hintergrund laden (Fetch + Indizieren
+  // blockieren die Suche kurz, aber der Graph ist längst sichtbar). setTimeout gibt
+  // dem Browser Zeit, zuerst zu zeichnen.
+  setTimeout(() => {
+    buildNoteIndex()
+      .then((idx) => { noteIndex = idx; })
+      .catch((e) => console.error("Notiz-Index konnte nicht geladen werden:", e));
+  }, 0);
 }
 boot().catch((e) => console.error(e));
