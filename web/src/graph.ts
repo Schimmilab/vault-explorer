@@ -374,6 +374,46 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     }
   }
 
+  // Nur EIN Cluster neu sortieren: fcose auf dessen Kinder + interne Kanten,
+  // Ergebnis auf den alten Schwerpunkt zurückschieben (Cluster bleibt am Ort),
+  // dann die gespeicherte Kompaktheit erneut anwenden.
+  function relayoutCluster(parentId: string) {
+    const parent = cy.getElementById(parentId) as unknown as NodeSingular;
+    const kids = parent.children();
+    if (kids.length < 2) return;
+    let cx0 = 0;
+    let cy0 = 0;
+    kids.forEach((k) => { cx0 += k.position("x"); cy0 += k.position("y"); });
+    cx0 /= kids.length;
+    cy0 /= kids.length;
+
+    const edges = kids.edgesWith(kids); // nur clusterinterne Kanten
+    const layout = kids.union(edges).layout({
+      name: "fcose",
+      animate: false,
+      randomize: true,
+      quality: "proof",
+      nodeSeparation: 120,
+      nodeRepulsion: 20000,
+      idealEdgeLength: 40,
+      edgeElasticity: 0.5,
+      gravity: 0.25,
+    } as any);
+    layout.one("layoutstop", () => {
+      // neuen Schwerpunkt bestimmen und alles auf den alten zurückschieben
+      let nx = 0;
+      let ny = 0;
+      kids.forEach((k) => { nx += k.position("x"); ny += k.position("y"); });
+      nx /= kids.length;
+      ny /= kids.length;
+      kids.forEach((k) => { k.position({ x: k.position("x") - nx + cx0, y: k.position("y") - ny + cy0 }); });
+      const v = compact.get(parentId) ?? globalCompact;
+      scaleCluster(parent, v / 100); // Kompaktheit dieses Clusters wiederherstellen
+      persistPositions();
+    });
+    layout.run();
+  }
+
   let pinned: string | null = null;
 
   cy.on("mouseover", "node.note", (e) => {
@@ -458,8 +498,13 @@ export function initGraph(container: HTMLElement, data: GraphData): GraphControl
     onSelectionChange: (cb) => {
       selCb = cb;
     },
-    // Gespeicherte Anordnung dieser Ebene verwerfen und frisch layouten.
+    // Ist ein Cluster markiert → nur dieses neu sortieren; sonst gespeicherte
+    // Anordnung dieser Ebene verwerfen und den ganzen Graph frisch layouten.
     relayout: () => {
+      if (selected) {
+        relayoutCluster(selected);
+        return;
+      }
       clearPositions(depth);
       compact.clear();
       globalCompact = DEFAULT_COMPACT;
