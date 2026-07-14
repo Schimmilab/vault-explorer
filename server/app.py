@@ -55,6 +55,15 @@ def graph():
     return {"nodes": [asdict(n) for n in g.nodes], "edges": [asdict(e) for e in g.edges]}
 
 
+@app.post("/api/reload")
+def reload():
+    """Cache leeren → Vault + System werden neu von der Platte eingelesen
+    (neue/gelöschte Notizen übernehmen, ohne den Server neu zu starten)."""
+    _cache.clear()
+    g = _graph()  # gleich neu aufbauen, damit die Antwort die neue Zahl nennt
+    return {"reloaded": True, "nodeCount": len(g.nodes)}
+
+
 def _safe_path(note_id: str):
     root = config.VAULT_ROOT.resolve()
     target = (root / note_id).resolve()

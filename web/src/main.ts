@@ -1,5 +1,5 @@
 // web/src/main.ts
-import { getGraph, getSystem, SystemItem } from "./api";
+import { getGraph, getSystem, reloadData, SystemItem } from "./api";
 import { initGraph } from "./graph";
 import { initHulls } from "./hulls";
 import { initInspector, renderSystemItem } from "./inspector";
@@ -177,6 +177,22 @@ async function boot() {
   modeGraphBtn.addEventListener("click", () => setMode("graph"));
   modePieBtn.addEventListener("click", () => setMode("pie"));
   modeRingBtn.addEventListener("click", () => setMode("ring"));
+
+  // Vault neu einlesen: Server-Cache leeren, dann Seite neu laden (holt Graph +
+  // System + Index frisch; die Handanordnung überlebt via localStorage).
+  const reloadBtn = document.getElementById("reload-data") as HTMLButtonElement;
+  reloadBtn.addEventListener("click", async () => {
+    reloadBtn.disabled = true;
+    reloadBtn.textContent = "… lädt";
+    try {
+      await reloadData();
+      location.reload();
+    } catch (e) {
+      console.error("Vault-Reload fehlgeschlagen:", e);
+      reloadBtn.disabled = false;
+      reloadBtn.textContent = "🔄 Vault neu laden";
+    }
+  });
 
   // Wartungs-Overlay (Orphans / Hubs / tote Links). Klick auf einen Eintrag →
   // in den Graph-Modus wechseln, hinfliegen, Knoten markieren, Inspektor öffnen.

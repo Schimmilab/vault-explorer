@@ -31,6 +31,21 @@ def test_graph(client):
     assert any(e["broken"] for e in body["edges"])
 
 
+def test_reload_picks_up_new_note(client, mini_vault):
+    # Erst-Request cached den Graph (4 Notizen).
+    assert client.get("/api/health").json()["nodeCount"] == 4
+    # Neue Notiz auf die Platte legen → ohne Reload bleibt der Cache stale.
+    (mini_vault / "01-context" / "c.md").write_text("# Notiz C\n", encoding="utf-8")
+    assert client.get("/api/health").json()["nodeCount"] == 4
+    # Reload leert den Cache → frisch eingelesen.
+    r = client.post("/api/reload")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["reloaded"] is True
+    assert body["nodeCount"] == 5
+    assert client.get("/api/health").json()["nodeCount"] == 5
+
+
 def test_note_returns_markdown(client):
     r = client.get("/api/note/01-context/b.md")
     assert r.status_code == 200

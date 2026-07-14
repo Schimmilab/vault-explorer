@@ -22,6 +22,8 @@ export const getGraph = () => j<GraphData>("/api/graph");
 export const getSearchDocs = () => j<SearchDoc[]>("/api/search-index");
 export const getSystem = () => j<SystemData>("/api/system");
 export const getInsights = () => j<InsightsData>("/api/insights");
+export const reloadData = () =>
+  fetch("/api/reload", { method: "POST" }).then((r) => r.json());
 export const getNote = async (id: string) =>
   (await fetch(`/api/note/${id}`)).text();
 export const openNote = (id: string) =>
