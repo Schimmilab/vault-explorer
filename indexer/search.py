@@ -5,7 +5,11 @@ import frontmatter
 
 from .vault import Graph
 
-_MAX_CHARS = 6000
+# Großzügiger Deckel: deckt praktisch jede Notiz voll ab (auch Hub-Dateien wie
+# open-loops.md mit ~120k Zeichen). Nur pathologisch große Dateien (OCR-Scans)
+# werden getrimmt, damit ein einzelnes Riesen-File das Index-Payload nicht sprengt.
+# Gesamt-Payload am echten Vault damit ~4 MB (vorher 6000er-Cap → 2,2 MB, 27% gekappt).
+_MAX_CHARS = 200_000
 
 
 def build_docs(vault_root: Path, graph: Graph) -> list[dict]:
