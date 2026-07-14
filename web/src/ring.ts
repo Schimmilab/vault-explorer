@@ -23,6 +23,8 @@ export interface RingController {
   show: () => void;
   hide: () => void;
   onItemClick: (cb: (item: SystemItem) => void) => void;
+  /** Einen System-Eintrag zentrieren + markieren. false, wenn nicht vorhanden. */
+  focus: (id: string) => boolean;
   clearSelection: () => void;
 }
 
@@ -192,7 +194,21 @@ export function initRing(
   });
   cy.on("tap", (e) => { if (e.target === cy) clearSelection(); });
 
-  function clearSelection() { cy.nodes(".item").removeClass("dim"); }
+  function clearSelection() {
+    cy.nodes(".item").removeClass("dim");
+    cy.$(":selected").unselect();
+  }
+
+  // Zentriert + markiert einen System-Eintrag (wie ein Klick) — für die Suche.
+  function focus(id: string): boolean {
+    const n = cy.getElementById(id);
+    if (n.empty()) return false;
+    cy.$(":selected").unselect();
+    cy.nodes(".item").addClass("dim");
+    n.removeClass("dim").select();
+    cy.animate({ center: { eles: n }, zoom: Math.max(cy.zoom(), 1.2) }, { duration: 350 });
+    return true;
+  }
 
   let laidOut = false;
   return {
@@ -211,6 +227,7 @@ export function initRing(
       guideCanvas.style.display = "none";
     },
     onItemClick(cb) { itemCb = cb; },
+    focus,
     clearSelection,
   };
 }

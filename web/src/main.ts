@@ -1,13 +1,15 @@
 // web/src/main.ts
-import { getGraph, getSystem } from "./api";
+import { getGraph, getSystem, SystemItem } from "./api";
 import { initGraph } from "./graph";
 import { initHulls } from "./hulls";
 import { initInspector, renderSystemItem } from "./inspector";
 import { initRing } from "./ring";
 import { initPie } from "./pie";
 import { initMinimap } from "./minimap";
-import { initSearch } from "./search";
+import { initSearch, buildNoteIndex, buildSystemIndex, SearchIndex } from "./search";
 import { initInsights } from "./insights";
+
+type Mode = "graph" | "pie" | "ring";
 
 async function boot() {
   const data = await getGraph();
@@ -61,11 +63,8 @@ async function boot() {
   relayoutBtn.addEventListener("click", () => graph.relayout());
 
   const searchEl = document.getElementById("search") as HTMLInputElement;
-  await initSearch(searchEl, (id) => {
-    graph.focus(id);
-    graph.flyTo(id);
-    inspect(id);
-  });
+  const search = initSearch(searchEl);
+  const noteIndex = await buildNoteIndex();
 
   const systemData = await getSystem();
 
@@ -94,6 +93,43 @@ async function boot() {
     if (e.target === pie.cy) inspectorEl.classList.add("hidden");
   });
 
+  // Suche je Modus: Graph + Kuchen suchen Notizen, der System-Ring sucht System-Einträge.
+  const systemIndex = buildSystemIndex(systemData);
+  const sysById = new Map<string, SystemItem>();
+  for (const items of Object.values(systemData.segments))
+    for (const it of items) sysById.set(it.id, it);
+
+  const searchSources: Record<
+    Mode,
+    { index: SearchIndex; onPick: (id: string) => void; placeholder: string }
+  > = {
+    graph: {
+      index: noteIndex,
+      onPick: (id) => { graph.focus(id); graph.flyTo(id); inspect(id); },
+      placeholder: "Suche im Vault …",
+    },
+    pie: {
+      index: noteIndex,
+      onPick: (id) => { pie.focus(id); inspect(id); },
+      placeholder: "Notiz im Kuchen suchen …",
+    },
+    ring: {
+      index: systemIndex,
+      onPick: (id) => {
+        ring.focus(id);
+        const it = sysById.get(id);
+        if (it) renderSystemItem(inspectorEl, it);
+      },
+      placeholder: "Skill / Command / MCP suchen …",
+    },
+  };
+  const applySearchSource = (mode: Mode) => {
+    const s = searchSources[mode];
+    search.setSource(s.index, s.onPick, s.placeholder);
+    searchEl.value = "";
+  };
+  applySearchSource("graph"); // Startmodus
+
   // Minimap: kleine Übersicht unten links, zeigt immer das aktive View.
   const minimap = initMinimap(document.getElementById("minimap") as HTMLCanvasElement);
   minimap.setCy(graph.cy);
@@ -105,14 +141,12 @@ async function boot() {
   const cyEl = document.getElementById("cy")!;
   const hullsEl = document.getElementById("hulls")!;
 
-  type Mode = "graph" | "pie" | "ring";
   function setMode(mode: Mode) {
     modeGraphBtn.classList.toggle("active", mode === "graph");
     modePieBtn.classList.toggle("active", mode === "pie");
     modeRingBtn.classList.toggle("active", mode === "ring");
-    // nur der Graph-View braucht seine Controls + Suche
+    // nur der Graph-View braucht seine Controls; die Suche gilt in allen Modi.
     graphControls.style.display = mode === "graph" ? "" : "none";
-    searchEl.style.display = mode === "graph" ? "" : "none";
     cyEl.style.display = mode === "graph" ? "" : "none";
     hullsEl.style.display = mode === "graph" ? "" : "none";
     inspectorEl.classList.add("hidden");
@@ -120,6 +154,8 @@ async function boot() {
     if (mode === "pie") { pie.show(); pie.clearSelection(); } else { pie.hide(); }
     if (mode === "ring") { ring.show(); ring.clearSelection(); } else { ring.hide(); }
     if (mode === "graph") graph.cy.resize();
+    // Suche auf den Modus umstellen (Notizen ↔ System) + Feld leeren.
+    applySearchSource(mode);
     // Minimap folgt dem aktiven View
     minimap.setCy(mode === "pie" ? pie.cy : mode === "ring" ? ring.cy : graph.cy);
   }

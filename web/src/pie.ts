@@ -36,6 +36,8 @@ export interface PieController {
   hide: () => void;
   onNodeClick: (cb: (id: string) => void) => void;
   onSystemClick: (cb: (item: SystemItem) => void) => void;
+  /** Einen Eintrag (Notiz oder System-Item) zentrieren + markieren. false, wenn nicht vorhanden. */
+  focus: (id: string) => boolean;
   clearSelection: () => void;
 }
 
@@ -266,7 +268,21 @@ export function initPie(
   });
   cy.on("tap", (e) => { if (e.target === cy) clearSelection(); });
 
-  function clearSelection() { cy.nodes(".note, .sysitem").removeClass("dim"); }
+  function clearSelection() {
+    cy.nodes(".note, .sysitem").removeClass("dim");
+    cy.$(":selected").unselect();
+  }
+
+  // Zentriert + markiert einen Eintrag (wie ein Klick) — für die Suche.
+  function focus(id: string): boolean {
+    const n = cy.getElementById(id);
+    if (n.empty()) return false;
+    cy.$(":selected").unselect();
+    cy.nodes(".note, .sysitem").addClass("dim");
+    n.removeClass("dim").select();
+    cy.animate({ center: { eles: n }, zoom: Math.max(cy.zoom(), 1.2) }, { duration: 350 });
+    return true;
+  }
 
   let laidOut = false;
   return {
@@ -286,6 +302,7 @@ export function initPie(
     },
     onNodeClick(cb) { nodeCb = cb; },
     onSystemClick(cb) { sysCb = cb; },
+    focus,
     clearSelection,
   };
 }
