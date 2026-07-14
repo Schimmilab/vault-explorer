@@ -11,10 +11,65 @@ const SEG_TITLE: Record<string, string> = {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Suchbegriff in Tokens zerlegen: ganze Wörter + Teilstücke an Satzzeichen
+ *  (damit "E-Mail" auch "Email" trifft). Kurze Tokens (< 2) raus. */
+function highlightTokens(query: string): string[] {
+  const q = query.toLowerCase();
+  const whole = q.split(/\s+/);
+  const parts = q.split(/[^\p{L}\p{N}]+/u);
+  const toks = [...new Set([...whole, ...parts])].filter((t) => t.length >= 2);
+  return toks.sort((a, b) => b.length - a.length); // längste zuerst (Alternation)
+}
+
+/** Markiert alle Vorkommen der Suchbegriffe in den Textknoten von `root`
+ *  mit <mark class="hl"> — arbeitet nur auf Textknoten, lässt Tags/Links heil. */
+function highlightMatches(root: HTMLElement | null, query: string): void {
+  if (!root) return;
+  const toks = highlightTokens(query);
+  if (!toks.length) return;
+  const re = new RegExp(`(${toks.map(escRe).join("|")})`, "giu");
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n as Text);
+
+  for (const tn of nodes) {
+    const text = tn.nodeValue ?? "";
+    re.lastIndex = 0;
+    if (!re.test(text)) continue;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const mark = document.createElement("mark");
+      mark.className = "hl";
+      mark.textContent = m[0];
+      frag.appendChild(mark);
+      last = m.index + m[0].length;
+      if (m.index === re.lastIndex) re.lastIndex++; // Endlosschleife bei Leer-Match vermeiden
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    tn.parentNode?.replaceChild(frag, tn);
+  }
+}
+
+/** Nach dem Highlighten zur ersten Fundstelle im Textkörper scrollen. */
+function scrollToFirstHit(el: HTMLElement): void {
+  const hit = el.querySelector<HTMLElement>(".preview mark, #sys-preview mark") ??
+    el.querySelector<HTMLElement>("mark");
+  hit?.scrollIntoView({ block: "center" });
+}
+
 /** Detailansicht für einen System-Ring-Eintrag: Kurzbeschreibung, Öffnen-Button
  *  und eine Inline-Markdown-Vorschau des Dateiinhalts (Skill/Command/Memory).
  *  MCPs haben keinen Pfad → nur Name + Segment. */
-export async function renderSystemItem(el: HTMLElement, item: SystemItem): Promise<void> {
+export async function renderSystemItem(
+  el: HTMLElement, item: SystemItem, highlight = "",
+): Promise<void> {
   const beschreibung = item.meta?.beschreibung ?? "";
   const pfad = item.meta?.pfad ?? "";
   el.classList.remove("hidden");
@@ -27,12 +82,16 @@ export async function renderSystemItem(el: HTMLElement, item: SystemItem): Promi
     ${pfad ? `<div class="preview" id="sys-preview">… lädt …</div>` : ""}
     ${pfad ? `<div class="path" style="margin-top:12px">${esc(pfad)}</div>` : ""}
   `;
-  if (!pfad) return;
+  if (!pfad) {
+    if (highlight) { highlightMatches(el, highlight); scrollToFirstHit(el); }
+    return;
+  }
   el.querySelector<HTMLButtonElement>("#open-sys")!.onclick = () => openSystemFile(pfad);
   const raw = await getSystemFile(pfad).catch(() => "*(Vorschau nicht ladbar)*");
   if (el.dataset.current !== item.id) return; // inzwischen anderer Eintrag angeklickt
   const prev = el.querySelector<HTMLDivElement>("#sys-preview");
   if (prev) prev.innerHTML = md.render(raw);
+  if (highlight) { highlightMatches(el, highlight); scrollToFirstHit(el); }
 }
 
 export function initInspector(
@@ -41,7 +100,7 @@ export function initInspector(
 ) {
   const byId = new Map(data.nodes.map((n) => [n.id, n]));
 
-  return async function inspect(id: string) {
+  return async function inspect(id: string, highlight = "") {
     const node = byId.get(id);
     if (!node) return;
     const inbound = data.edges.filter((e) => e.target === id && !e.broken).map((e) => e.source);
@@ -68,6 +127,12 @@ export function initInspector(
         if (byId.has(target)) onLinkTo(target);
       };
     });
+
+    // Suchbegriff im Text markieren + zur ersten Fundstelle scrollen.
+    if (highlight) {
+      highlightMatches(el.querySelector<HTMLElement>(".preview"), highlight);
+      scrollToFirstHit(el);
+    }
   };
 }
 

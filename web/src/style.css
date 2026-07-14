@@ -43,6 +43,8 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #inspector .preview { margin-top: 12px; border-top: 1px solid #2a2f3a; padding-top: 12px; }
 #inspector button { margin-top: 12px; padding: 6px 12px; border-radius: 6px;
   border: 1px solid #2a2f3a; background: #1d2530; color: #e6e6e6; cursor: pointer; }
+/* Suchbegriff-Treffer im Dokument-Preview hervorheben. */
+#inspector mark.hl { background: #ffd24a; color: #0e1116; border-radius: 2px; padding: 0 1px; }
 
 /* Wartungs-Overlay (Insights) — linkes Drawer, spiegelt den Inspektor rechts. */
 #insights { position: absolute; top: 0; left: 0; z-index: 11; height: 100%;

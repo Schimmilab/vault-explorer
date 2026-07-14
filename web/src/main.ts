@@ -101,24 +101,24 @@ async function boot() {
 
   const searchSources: Record<
     Mode,
-    { index: SearchIndex; onPick: (id: string) => void; placeholder: string }
+    { index: SearchIndex; onPick: (id: string, query: string) => void; placeholder: string }
   > = {
     graph: {
       index: noteIndex,
-      onPick: (id) => { graph.focus(id); graph.flyTo(id); inspect(id); },
+      onPick: (id, q) => { graph.focus(id); graph.flyTo(id); inspect(id, q); },
       placeholder: "Suche im Vault …",
     },
     pie: {
       index: noteIndex,
-      onPick: (id) => { pie.focus(id); inspect(id); },
+      onPick: (id, q) => { pie.focus(id); inspect(id, q); },
       placeholder: "Notiz im Kuchen suchen …",
     },
     ring: {
       index: systemIndex,
-      onPick: (id) => {
+      onPick: (id, q) => {
         ring.focus(id);
         const it = sysById.get(id);
-        if (it) renderSystemItem(inspectorEl, it);
+        if (it) renderSystemItem(inspectorEl, it, q);
       },
       placeholder: "Skill / Command / MCP suchen …",
     },

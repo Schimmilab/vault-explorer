@@ -8,19 +8,25 @@ import { getSearchDocs, SystemData } from "./api";
 export type SearchIndex = (query: string) => string[];
 
 export interface SearchController {
-  /** Aktive Quelle + Trefferaktion + Placeholder setzen (beim Moduswechsel). */
-  setSource: (index: SearchIndex, onPick: (id: string) => void, placeholder: string) => void;
+  /** Aktive Quelle + Trefferaktion + Placeholder setzen (beim Moduswechsel).
+   *  onPick bekommt neben der Treffer-ID auch die Suchanfrage (zum Highlighten). */
+  setSource: (
+    index: SearchIndex,
+    onPick: (id: string, query: string) => void,
+    placeholder: string,
+  ) => void;
 }
 
 /** Enter im Suchfeld → obersten Treffer der aktiven Quelle an onPick geben. */
 export function initSearch(input: HTMLInputElement): SearchController {
   let index: SearchIndex | null = null;
-  let pick: (id: string) => void = () => {};
+  let pick: (id: string, query: string) => void = () => {};
 
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || !index) return;
-    const ids = index(input.value);
-    if (ids.length) pick(ids[0]);
+    const query = input.value;
+    const ids = index(query);
+    if (ids.length) pick(ids[0], query);
   });
 
   return {
