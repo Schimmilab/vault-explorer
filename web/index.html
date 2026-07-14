@@ -28,6 +28,7 @@
             <input type="range" id="compaction" min="25" max="120" value="62" />
           </label>
           <button id="relayout" title="Gespeicherte Anordnung dieser Ebene verwerfen und neu berechnen">↺ Neu anordnen</button>
+          <button id="toggle-insights" title="Wartung: isolierte Notizen, Hubs, tote Links">🔧 Wartung</button>
         </div>
       </div>
       <canvas id="hulls"></canvas>
@@ -37,6 +38,7 @@
       <canvas id="ring-guides" style="display:none"></canvas>
       <div id="ring" style="display:none"></div>
       <canvas id="minimap" title="Übersicht — Klick schwenkt dorthin"></canvas>
+      <aside id="insights" class="hidden"></aside>
       <aside id="inspector" class="hidden"></aside>
     </div>
     <script type="module" src="/src/main.ts"></script>

@@ -7,6 +7,7 @@ import { initRing } from "./ring";
 import { initPie } from "./pie";
 import { initMinimap } from "./minimap";
 import { initSearch } from "./search";
+import { initInsights } from "./insights";
 
 async function boot() {
   const data = await getGraph();
@@ -125,6 +126,23 @@ async function boot() {
   modeGraphBtn.addEventListener("click", () => setMode("graph"));
   modePieBtn.addEventListener("click", () => setMode("pie"));
   modeRingBtn.addEventListener("click", () => setMode("ring"));
+
+  // Wartungs-Overlay (Orphans / Hubs / tote Links). Klick auf einen Eintrag →
+  // in den Graph-Modus wechseln, hinfliegen, Knoten markieren, Inspektor öffnen.
+  const byId = new Map(data.nodes.map((n) => [n.id, n]));
+  const insightsEl = document.getElementById("insights")!;
+  await initInsights(
+    insightsEl,
+    (id) => byId.get(id)?.label ?? id,
+    (id) => {
+      setMode("graph");
+      graph.focus(id);
+      graph.flyTo(id);
+      inspect(id);
+    },
+  );
+  const insToggle = document.getElementById("toggle-insights") as HTMLButtonElement;
+  insToggle.addEventListener("click", () => insightsEl.classList.toggle("hidden"));
 
   (window as any).__graph = graph;
   (window as any).__ring = ring;

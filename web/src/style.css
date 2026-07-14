@@ -43,3 +43,23 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #inspector .preview { margin-top: 12px; border-top: 1px solid #2a2f3a; padding-top: 12px; }
 #inspector button { margin-top: 12px; padding: 6px 12px; border-radius: 6px;
   border: 1px solid #2a2f3a; background: #1d2530; color: #e6e6e6; cursor: pointer; }
+
+/* Wartungs-Overlay (Insights) — linkes Drawer, spiegelt den Inspektor rechts. */
+#insights { position: absolute; top: 0; left: 0; z-index: 11; height: 100%;
+  width: 320px; max-width: 90vw; padding: 16px 18px; overflow-y: auto;
+  background: #12161d; border-right: 1px solid #2a2f3a; transition: transform .2s ease; }
+#insights.hidden { transform: translateX(-100%); }
+#insights .ins-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+#insights h2 { font-size: 16px; }
+#insights #ins-close { background: none; border: none; color: #8a94a6; font-size: 15px; cursor: pointer; padding: 2px 6px; }
+#insights #ins-close:hover { color: #e6e6e6; }
+#insights details { border-top: 1px solid #2a2f3a; padding: 8px 0; }
+#insights summary { cursor: pointer; font-size: 13px; color: #c7cfdb; user-select: none; }
+#insights .ins-count { color: #9db4d8; font-size: 12px; margin-left: 4px; }
+#insights ul { list-style: none; margin-top: 6px; max-height: 42vh; overflow-y: auto; }
+#insights .ins-row { padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  display: flex; flex-direction: column; }
+#insights .ins-row:hover { background: #1d2530; }
+#insights .ins-main { color: #e6e6e6; font-size: 13px; }
+#insights .ins-sub { color: #8a94a6; font-size: 11px; word-break: break-all; }
+#insights .ins-empty { color: #8a94a6; font-size: 12px; padding: 4px 8px; }

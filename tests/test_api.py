@@ -72,6 +72,17 @@ def test_open_404_missing(client):
     assert client.post("/api/open", json={"id": "nope.md"}).status_code == 404
 
 
+def test_insights_endpoint(client):
+    r = client.get("/api/insights")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) >= {"orphans", "hubs", "dead_links"}
+    assert "04-projects/orphan.md" in body["orphans"]
+    assert "CLAUDE.md" in body["orphans"]
+    assert "01-context/b.md" in body["hubs"]
+    assert {"source": "01-context/a.md", "target": "01-context/fehlt.md"} in body["dead_links"]
+
+
 def test_system_endpoint(client):
     r = client.get("/api/system")
     assert r.status_code == 200

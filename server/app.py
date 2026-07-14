@@ -12,6 +12,7 @@ import config
 from indexer.vault import build_graph
 from indexer.search import build_docs
 from indexer.system import build_system
+from indexer.insights import orphans, hubs, dead_links
 
 app = FastAPI(title="Vault-Explorer")
 _cache: dict = {}
@@ -67,6 +68,13 @@ def _safe_path(note_id: str):
 @app.get("/api/note/{note_id:path}", response_class=PlainTextResponse)
 def note(note_id: str):
     return _safe_path(note_id).read_text(encoding="utf-8", errors="replace")
+
+
+@app.get("/api/insights")
+def insights():
+    """Wartungs-Analysen über den Graph: Orphans, Hubs, tote Links."""
+    g = _graph()
+    return {"orphans": orphans(g), "hubs": hubs(g), "dead_links": dead_links(g)}
 
 
 @app.get("/api/search-index")

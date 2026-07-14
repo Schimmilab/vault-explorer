@@ -9,6 +9,8 @@ export interface GraphData { nodes: GraphNode[]; edges: GraphEdge[]; }
 export interface SearchDoc { id: string; title: string; area: string; text: string; }
 export interface SystemItem { id: string; label: string; segment: string; meta: Record<string, string>; }
 export interface SystemData { segments: Record<string, SystemItem[]>; counts: Record<string, number>; }
+export interface DeadLink { source: string; target: string; }
+export interface InsightsData { orphans: string[]; hubs: string[]; dead_links: DeadLink[]; }
 
 const j = async <T>(url: string): Promise<T> => {
   const r = await fetch(url);
@@ -19,6 +21,7 @@ const j = async <T>(url: string): Promise<T> => {
 export const getGraph = () => j<GraphData>("/api/graph");
 export const getSearchDocs = () => j<SearchDoc[]>("/api/search-index");
 export const getSystem = () => j<SystemData>("/api/system");
+export const getInsights = () => j<InsightsData>("/api/insights");
 export const getNote = async (id: string) =>
   (await fetch(`/api/note/${id}`)).text();
 export const openNote = (id: string) =>
