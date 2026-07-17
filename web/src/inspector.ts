@@ -4,6 +4,21 @@ import { getNote, openNote, getSystemFile, openSystemFile, GraphData, SystemItem
 
 const md = new MarkdownIt({ html: false, linkify: true });
 
+// Externe Links (http/https) in einem neuen Tab öffnen — gilt global für jede
+// md.render-Ausgabe (Notiz-Preview + System-Vorschau). Interne Vault-Links
+// (relative .md-Pfade) bleiben unberührt und werden weiter per onLinkTo abgefangen.
+const defaultLinkOpen =
+  md.renderer.rules.link_open ??
+  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
+md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+  const href = tokens[idx].attrGet("href") ?? "";
+  if (/^https?:\/\//i.test(href)) {
+    tokens[idx].attrSet("target", "_blank");
+    tokens[idx].attrSet("rel", "noopener noreferrer");
+  }
+  return defaultLinkOpen(tokens, idx, options, env, self);
+};
+
 const SEG_TITLE: Record<string, string> = {
   skills: "Skill", commands: "Command", memory: "Memory", mcps: "MCP", routines: "Routine",
 };
