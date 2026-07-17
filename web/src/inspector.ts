@@ -139,22 +139,45 @@ export function initInspector(
 ) {
   const byId = new Map(data.nodes.map((n) => [n.id, n]));
 
+  // Eine Gruppe verlinkter Nachbarknoten (eingehend/ausgehend) als aufklappbares
+  // Dropdown (<details>) — bei Hub-Notizen sind es viele, deshalb standardmäßig zu.
+  const linkList = (ids: string[], head: string): string => {
+    if (!ids.length) return "";
+    const items = ids
+      .map((nid) => ({ nid, label: byId.get(nid)?.label ?? nid }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(({ nid, label }) => `<li><a class="linkref" data-id="${esc(nid)}">${esc(label)}</a></li>`)
+      .join("");
+    return `<details class="linkgroup"><summary>${head} <span class="linkcount">${ids.length}</span></summary><ul>${items}</ul></details>`;
+  };
+
   return async function inspect(id: string, highlight = "") {
     const node = byId.get(id);
     if (!node) return;
-    const inbound = data.edges.filter((e) => e.target === id && !e.broken).map((e) => e.source);
-    const outbound = data.edges.filter((e) => e.source === id && !e.broken).map((e) => e.target);
+    // Eindeutige Nachbarknoten (mehrfache Links auf dieselbe Notiz nur einmal zeigen).
+    const inbound = [...new Set(data.edges.filter((e) => e.target === id && !e.broken).map((e) => e.source))];
+    const outbound = [...new Set(data.edges.filter((e) => e.source === id && !e.broken).map((e) => e.target))];
     const raw = await getNote(id).catch(() => "*(Vorschau nicht ladbar)*");
 
     el.classList.remove("hidden");
     el.innerHTML = `
       <h2>${node.label}</h2>
       <div class="path">${id}</div>
-      <div>← ${inbound.length} eingehend · ${outbound.length} ausgehend</div>
       <button id="open-btn">In App öffnen</button>
+      ${linkList(outbound, "→ Ausgehend")}
+      ${linkList(inbound, "← Eingehend")}
       <div class="preview">${md.render(raw)}</div>
     `;
     el.querySelector<HTMLButtonElement>("#open-btn")!.onclick = () => openNote(id);
+
+    // Nachbarknoten-Links (ein-/ausgehend) klickbar → hin navigieren (inkl. History + Graph-Fokus).
+    el.querySelectorAll<HTMLAnchorElement>("a.linkref").forEach((a) => {
+      a.onclick = (ev) => {
+        ev.preventDefault();
+        const t = a.dataset.id!;
+        if (byId.has(t)) onLinkTo(t);
+      };
+    });
 
     // Interne Vorschau-Links klickbar → Zielknoten ansteuern
     el.querySelectorAll<HTMLAnchorElement>(".preview a").forEach((a) => {
