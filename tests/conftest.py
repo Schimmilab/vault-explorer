@@ -4,6 +4,10 @@ from pathlib import Path
 
 import pytest
 
+# Fixtures immer utf-8 schreiben — sonst nutzt Windows cp1252 und Umlaute
+# (z. B. "Kärcher-Sync") zerbrechen beim späteren utf-8-Lesen.
+UTF8 = {"encoding": "utf-8"}
+
 
 @pytest.fixture
 def mini_vault(tmp_path: Path) -> Path:
@@ -22,7 +26,7 @@ def mini_vault(tmp_path: Path) -> Path:
     (root / ".claude" / "skills" / "s").mkdir(parents=True)
 
     (root / "CLAUDE.md").write_text(
-        "# Regelwerk\nSiehe [A](01-context/a.md) und [B](01-context/b.md).\n"
+        "# Regelwerk\nSiehe [A](01-context/a.md) und [B](01-context/b.md).\n", **UTF8
     )
     (root / "01-context" / "a.md").write_text(
         textwrap.dedent("""\
@@ -33,12 +37,12 @@ def mini_vault(tmp_path: Path) -> Path:
         # Notiz A
         Link zu [B](b.md) und ein [toter Link](fehlt.md).
         Externer [Link](https://example.com) und ein ![Bild](../img.png).
-        """)
+        """), **UTF8
     )
-    (root / "01-context" / "b.md").write_text("# Notiz B\nKein Auslink.\n")
-    (root / "04-projects" / "orphan.md").write_text("# Waise\nNiemand verlinkt mich.\n")
-    (root / "_papierkorb" / "x.md").write_text("# Müll\n[A](../01-context/a.md)\n")
-    (root / ".claude" / "skills" / "s" / "SKILL.md").write_text("# Skill s\n")
+    (root / "01-context" / "b.md").write_text("# Notiz B\nKein Auslink.\n", **UTF8)
+    (root / "04-projects" / "orphan.md").write_text("# Waise\nNiemand verlinkt mich.\n", **UTF8)
+    (root / "_papierkorb" / "x.md").write_text("# Müll\n[A](../01-context/a.md)\n", **UTF8)
+    (root / ".claude" / "skills" / "s" / "SKILL.md").write_text("# Skill s\n", **UTF8)
     return root
 
 
@@ -49,9 +53,9 @@ def mini_claude(tmp_path: Path) -> Path:
     (home / "skills" / "bridge").mkdir(parents=True)
     (home / "commands").mkdir(parents=True)
     (home / "skills" / "bridge" / "SKILL.md").write_text(
-        "---\ndescription: Kärcher-Sync\n---\n# bridge\n"
+        "---\ndescription: Kärcher-Sync\n---\n# bridge\n", **UTF8
     )
-    (home / "commands" / "start.md").write_text("# Start\nSession starten.\n")
+    (home / "commands" / "start.md").write_text("# Start\nSession starten.\n", **UTF8)
     return home
 
 
@@ -60,10 +64,10 @@ def mini_memory(tmp_path: Path) -> Path:
     mem = tmp_path / "memory"
     mem.mkdir()
     (mem / "MEMORY.md").write_text(
-        "# Memory Index\n- [Regel X](feedback_x.md) — kurz\n"
+        "# Memory Index\n- [Regel X](feedback_x.md) — kurz\n", **UTF8
     )
     (mem / "feedback_x.md").write_text(
-        "---\nname: feedback_x\ndescription: Regel X\n---\nInhalt.\n"
+        "---\nname: feedback_x\ndescription: Regel X\n---\nInhalt.\n", **UTF8
     )
     return mem
 
@@ -71,5 +75,5 @@ def mini_memory(tmp_path: Path) -> Path:
 @pytest.fixture
 def mini_mcp_config(tmp_path: Path) -> Path:
     cfg = tmp_path / "claude.json"
-    cfg.write_text(json.dumps({"mcpServers": {"things3": {}, "oura": {}}}))
+    cfg.write_text(json.dumps({"mcpServers": {"things3": {}, "oura": {}}}), **UTF8)
     return cfg

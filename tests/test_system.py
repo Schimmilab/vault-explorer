@@ -62,7 +62,7 @@ def test_build_system_includes_vault_skills(mini_claude, tmp_path):
     vault = tmp_path / "vault"
     (vault / ".claude" / "skills" / "produktcheck").mkdir(parents=True)
     (vault / ".claude" / "skills" / "produktcheck" / "SKILL.md").write_text(
-        "---\ndescription: Produktberatung\n---\n# produktcheck\n"
+        "---\ndescription: Produktberatung\n---\n# produktcheck\n", encoding="utf-8"
     )
     result = build_system(
         claude_home=mini_claude, memory_dir=tmp_path / "no-mem",
