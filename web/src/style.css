@@ -16,6 +16,15 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #search { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
   z-index: 10; width: 380px; max-width: 80vw; padding: 8px 12px; border-radius: 8px;
   border: 1px solid #2a2f3a; background: #171b22; color: #e6e6e6; }
+/* Zurück/Vorwärts durch die geöffneten Dokumente — oben-mitte, links neben der Suche. */
+#navhistory { position: absolute; top: 16px; left: 50%; transform: translateX(-236px);
+  z-index: 10; display: flex; gap: 0; }
+#navhistory button { width: 34px; padding: 8px 0; font-size: 14px; cursor: pointer;
+  border: 1px solid #2a2f3a; background: #171b22; color: #c7cfdb; }
+#navhistory button:first-child { border-radius: 8px 0 0 8px; border-right: none; }
+#navhistory button:last-child { border-radius: 0 8px 8px 0; }
+#navhistory button:hover:not(:disabled) { background: #263041; color: #e6e6e6; }
+#navhistory button:disabled { opacity: .35; cursor: default; }
 #controls { position: absolute; top: 16px; left: 16px; z-index: 10;
   display: flex; flex-direction: column; gap: 8px;
   background: #171b22; border: 1px solid #2a2f3a; border-radius: 8px; padding: 10px 12px; }

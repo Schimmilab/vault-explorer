@@ -22,14 +22,51 @@ async function boot() {
   const inspect = initInspector(inspectorEl, data, (targetId) => {
     graph.focus(targetId);
     graph.flyTo(targetId);
-    inspect(targetId);
+    openNote(targetId);
   });
   (window as any).__inspect = inspect;
+
+  // --- Navigations-History (Browser-artig, in-memory pro Session) ---------
+  // Deckt Notizen (inspect) und System-Einträge (renderSystemItem) ab. Alle
+  // User-Öffnungen laufen über openNote/openSys → pushen in den Stack; ⟵/⟶
+  // stellen wieder her, ohne erneut zu pushen (navigating-Flag).
+  type HistEntry = { kind: "note" | "sys"; id: string };
+  const hist: HistEntry[] = [];
+  let hIdx = -1;
+  let navigating = false;
+  const navBack = document.getElementById("nav-back") as HTMLButtonElement;
+  const navFwd = document.getElementById("nav-fwd") as HTMLButtonElement;
+  function updateNavButtons() {
+    navBack.disabled = hIdx <= 0;
+    navFwd.disabled = hIdx >= hist.length - 1;
+  }
+  function pushHistory(e: HistEntry) {
+    if (navigating) return;
+    if (hist[hIdx]?.kind === e.kind && hist[hIdx]?.id === e.id) return; // Doppelklick
+    hist.splice(hIdx + 1); // Forward-Zweig kappen
+    hist.push(e);
+    hIdx = hist.length - 1;
+    updateNavButtons();
+  }
+  function restore(e: HistEntry) {
+    navigating = true;
+    if (e.kind === "note") inspect(e.id);
+    else { const it = sysById.get(e.id); if (it) renderSystemItem(inspectorEl, it); }
+    navigating = false;
+  }
+  function openNote(id: string, hl = "") { pushHistory({ kind: "note", id }); inspect(id, hl); }
+  function openSys(item: SystemItem, hl = "") {
+    pushHistory({ kind: "sys", id: item.id });
+    renderSystemItem(inspectorEl, item, hl);
+  }
+  navBack.addEventListener("click", () => { if (hIdx > 0) { hIdx--; restore(hist[hIdx]); updateNavButtons(); } });
+  navFwd.addEventListener("click", () => { if (hIdx < hist.length - 1) { hIdx++; restore(hist[hIdx]); updateNavButtons(); } });
+  updateNavButtons();
 
   // Klick auf einen Knoten → Nachbarschaft hervorheben + Inspektor öffnen.
   graph.onNodeClick((id) => {
     graph.focus(id);
-    inspect(id);
+    openNote(id);
   });
   // Klick auf leere Fläche → Fokus lösen + Inspektor schließen.
   graph.cy.on("tap", (e) => {
@@ -80,7 +117,7 @@ async function boot() {
     document.getElementById("ring-guides") as HTMLCanvasElement,
     systemData,
   );
-  ring.onItemClick((item) => renderSystemItem(inspectorEl, item));
+  ring.onItemClick((item) => openSys(item));
   // Klick auf leere Ringfläche → Inspektor schließen (wie im Graph-Modus).
   ring.cy.on("tap", (e) => {
     if (e.target === ring.cy) inspectorEl.classList.add("hidden");
@@ -93,8 +130,8 @@ async function boot() {
     data,
     systemData,
   );
-  pie.onNodeClick((id) => inspect(id));
-  pie.onSystemClick((item) => renderSystemItem(inspectorEl, item));
+  pie.onNodeClick((id) => openNote(id));
+  pie.onSystemClick((item) => openSys(item));
   pie.cy.on("tap", (e) => {
     if (e.target === pie.cy) inspectorEl.classList.add("hidden");
   });
@@ -119,12 +156,12 @@ async function boot() {
   > = {
     graph: {
       index: noteSearch,
-      onPick: (id, q) => { graph.focus(id); graph.flyTo(id); inspect(id, q); },
+      onPick: (id, q) => { graph.focus(id); graph.flyTo(id); openNote(id, q); },
       placeholder: "Suche im Vault …",
     },
     pie: {
       index: noteSearch,
-      onPick: (id, q) => { pie.focus(id); inspect(id, q); },
+      onPick: (id, q) => { pie.focus(id); openNote(id, q); },
       placeholder: "Notiz im Kuchen suchen …",
     },
     ring: {
@@ -132,7 +169,7 @@ async function boot() {
       onPick: (id, q) => {
         ring.focus(id);
         const it = sysById.get(id);
-        if (it) renderSystemItem(inspectorEl, it, q);
+        if (it) openSys(it, q);
       },
       placeholder: "Skill / Command / MCP suchen …",
     },
@@ -206,7 +243,7 @@ async function boot() {
       setMode("graph");
       graph.focus(id);
       graph.flyTo(id);
-      inspect(id);
+      openNote(id);
     },
   );
   const insToggle = document.getElementById("toggle-insights") as HTMLButtonElement;
