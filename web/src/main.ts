@@ -8,6 +8,7 @@ import { initPie } from "./pie";
 import { initMinimap } from "./minimap";
 import { initSearch, buildNoteIndex, buildSystemIndex, SearchIndex } from "./search";
 import { initInsights } from "./insights";
+import { loadInspectorWidth, saveInspectorWidth } from "./store";
 
 type Mode = "graph" | "pie" | "ring";
 
@@ -210,6 +211,28 @@ async function boot() {
   );
   const insToggle = document.getElementById("toggle-insights") as HTMLButtonElement;
   insToggle.addEventListener("click", () => insightsEl.classList.toggle("hidden"));
+
+  // Inspektor-Breite: gespeicherte Breite anwenden + Zieh-Griff verdrahten.
+  // Der Inspektor überlagert den Graph (kein Layout-Shift) → kein cy.resize nötig.
+  const savedW = loadInspectorWidth();
+  if (savedW) document.documentElement.style.setProperty("--inspector-w", `${savedW}px`);
+  const resizeHandle = document.getElementById("inspector-resize")!;
+  resizeHandle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(900, Math.max(280, window.innerWidth - ev.clientX));
+      document.documentElement.style.setProperty("--inspector-w", `${w}px`);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      const cur = getComputedStyle(document.documentElement).getPropertyValue("--inspector-w");
+      const px = parseInt(cur, 10);
+      if (px) saveInspectorWidth(px);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
 
   (window as any).__graph = graph;
   (window as any).__ring = ring;

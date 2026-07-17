@@ -32,10 +32,15 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
   width: 200px; height: 150px; border: 1px solid #2a2f3a; border-radius: 8px;
   background: rgba(18, 22, 29, 0.82); cursor: pointer; }
 #inspector { position: absolute; top: 0; right: 0; z-index: 10; height: 100%;
-  width: 380px; max-width: 90vw; padding: 20px; overflow-y: auto;
+  width: var(--inspector-w, 380px); max-width: 95vw; padding: 20px; overflow-y: auto;
   background: #12161d; border-left: 1px solid #2a2f3a;
   transition: transform .2s ease; }
 #inspector.hidden { transform: translateX(100%); }
+/* Zieh-Griff am linken Rand des Inspektors — nur sichtbar, wenn er offen ist. */
+#inspector-resize { position: absolute; top: 0; height: 100%; width: 6px;
+  right: var(--inspector-w, 380px); z-index: 11; cursor: col-resize; display: none; }
+#inspector-resize:hover { background: #2a2f3a; }
+#app:has(#inspector:not(.hidden)) #inspector-resize { display: block; }
 #inspector h2 { font-size: 16px; margin-bottom: 8px; }
 #inspector .path { color: #8a94a6; font-size: 12px; margin-bottom: 12px; word-break: break-all; }
 #inspector a { color: #6ea8fe; cursor: pointer; }

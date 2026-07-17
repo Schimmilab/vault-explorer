@@ -53,3 +53,24 @@ export function clearPositions(depth: number): void {
     /* ignore */
   }
 }
+
+// Breite des Inspektor-/Vorschau-Panels — separat gehalten (nicht im graph-State),
+// damit das Panel-Resize die Handanordnungs-Persistenz nicht berührt.
+const IW_KEY = `${KEY}.inspectorWidth`;
+
+export function loadInspectorWidth(): number | null {
+  try {
+    const v = localStorage.getItem(IW_KEY);
+    return v ? parseInt(v, 10) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveInspectorWidth(px: number): void {
+  try {
+    localStorage.setItem(IW_KEY, String(px));
+  } catch {
+    /* ignore */
+  }
+}
