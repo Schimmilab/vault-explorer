@@ -67,6 +67,11 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
 #inspector .hitnav button { margin: 0; padding: 2px 9px; font-size: 12px; }
 #inspector .hitnav .hitcount { color: #9db4d8; font-size: 12px; }
 
+/* Such-Filter-Dropdown rechts neben dem Suchfeld. */
+#search-filter { position: absolute; top: 16px; left: 50%; transform: translateX(198px);
+  z-index: 10; max-width: 150px; padding: 8px 6px; border-radius: 8px;
+  border: 1px solid #2a2f3a; background: #171b22; color: #c7cfdb; cursor: pointer; }
+
 /* Live-Trefferliste unter dem Suchfeld. */
 #results { position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
   z-index: 10; width: 380px; max-width: 80vw; max-height: 50vh; overflow-y: auto;

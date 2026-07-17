@@ -175,10 +175,28 @@ async function boot() {
       placeholder: "Skill / Command / MCP suchen …",
     },
   };
+  // Such-Filter: Graph/Kuchen filtern nach Bereich (area), der Ring nach Segment (Typ).
+  const filterSel = document.getElementById("search-filter") as HTMLSelectElement;
+  const noteAreas = [...new Set(data.nodes.map((n) => n.area))].filter(Boolean).sort();
+  const sysSegments = Object.keys(systemData.segments);
+  const optEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  function populateFilter(mode: Mode) {
+    const opts = mode === "ring" ? sysSegments : noteAreas;
+    const allLabel = mode === "ring" ? "Alle Typen" : "Alle Bereiche";
+    filterSel.innerHTML =
+      `<option value="">${allLabel}</option>` +
+      opts.map((o) => `<option value="${optEsc(o)}">${optEsc(o)}</option>`).join("");
+    filterSel.value = "";
+  }
+  filterSel.addEventListener("change", () =>
+    search.setFilter(filterSel.value ? { area: filterSel.value } : {}),
+  );
+
   const applySearchSource = (mode: Mode) => {
     const s = searchSources[mode];
     search.setSource(s.index, s.onPick, s.placeholder);
     searchEl.value = "";
+    populateFilter(mode);
   };
   applySearchSource("graph"); // Startmodus
 
