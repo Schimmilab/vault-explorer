@@ -34,6 +34,7 @@ async function boot() {
   const hist: HistEntry[] = [];
   let hIdx = -1;
   let navigating = false;
+  let currentMode: Mode = "graph"; // von setMode gepflegt — restore fokussiert im aktiven View
   const navBack = document.getElementById("nav-back") as HTMLButtonElement;
   const navFwd = document.getElementById("nav-fwd") as HTMLButtonElement;
   function updateNavButtons() {
@@ -50,8 +51,15 @@ async function boot() {
   }
   function restore(e: HistEntry) {
     navigating = true;
-    if (e.kind === "note") inspect(e.id);
-    else { const it = sysById.get(e.id); if (it) renderSystemItem(inspectorEl, it); }
+    if (e.kind === "note") {
+      // Graph-Knoten / Kuchen-Segment mitnehmen, damit Panel und View nicht auseinanderlaufen.
+      if (currentMode === "graph") { graph.focus(e.id); graph.flyTo(e.id); }
+      else if (currentMode === "pie") { pie.focus(e.id); }
+      inspect(e.id);
+    } else {
+      const it = sysById.get(e.id);
+      if (it) { if (currentMode === "ring") ring.focus(e.id); renderSystemItem(inspectorEl, it); }
+    }
     navigating = false;
   }
   function openNote(id: string, hl = "") { pushHistory({ kind: "note", id }); inspect(id, hl); }
@@ -108,7 +116,7 @@ async function boot() {
   // liefert die Wrapper-Funktion keine Treffer (Ring-Suche funktioniert sofort,
   // da sie aus den bereits geladenen System-Daten kommt).
   let noteIndex: SearchIndex | null = null;
-  const noteSearch: SearchIndex = (q) => (noteIndex ? noteIndex(q) : []);
+  const noteSearch: SearchIndex = (q, opts) => (noteIndex ? noteIndex(q, opts) : []);
 
   const systemData = await getSystem();
 
@@ -213,6 +221,7 @@ async function boot() {
   const hullsEl = document.getElementById("hulls")!;
 
   function setMode(mode: Mode) {
+    currentMode = mode; // History-Restore fokussiert im richtigen View
     modeGraphBtn.classList.toggle("active", mode === "graph");
     modePieBtn.classList.toggle("active", mode === "pie");
     modeRingBtn.classList.toggle("active", mode === "ring");
