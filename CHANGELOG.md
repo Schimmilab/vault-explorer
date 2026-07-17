@@ -8,7 +8,13 @@
   **Filter** nach Bereich (Notizen) bzw. Segment (System-Ring).
 - **Zurück/Vorwärts-Navigation** durch die geöffneten Dokumente (In-Memory-History).
 - **Resizable Inspektor-Panel** per Zieh-Griff; Breite wird lokal gemerkt.
+- **Verlinkte Nachbarknoten** im Inspektor als aufklappbare Dropdowns (ein-/ausgehend),
+  klickbar zum Hinnavigieren; ersetzt die reine Anzahl-Anzeige.
 - **CI:** GitHub Actions — pytest auf Linux/Windows/macOS (Python 3.11 + 3.12) + Frontend-Build.
+
+Fixes im Zuge des Live-Tests: Zurück/Vorwärts fokussiert jetzt auch den Graph-Knoten
+(nicht nur das Panel); der Such-Filter wird nun tatsächlich angewandt (der Index-Wrapper
+reichte das Filter-Argument nicht durch).
 
 ## v1.0.2 und früher
 
