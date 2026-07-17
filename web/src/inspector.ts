@@ -72,11 +72,35 @@ function highlightMatches(root: HTMLElement | null, query: string): void {
   }
 }
 
-/** Nach dem Highlighten zur ersten Fundstelle im Textkörper scrollen. */
-function scrollToFirstHit(el: HTMLElement): void {
-  const hit = el.querySelector<HTMLElement>(".preview mark, #sys-preview mark") ??
-    el.querySelector<HTMLElement>("mark");
-  hit?.scrollIntoView({ block: "center" });
+/** Highlightet die Suchbegriffe in mehreren Regionen (inkl. Titel <h2>), sammelt
+ *  ALLE Treffer und blendet oben im Panel einen Navigator (◀ n/N ▶) ein, der von
+ *  Fundstelle zu Fundstelle springt. Löst „nur erster Treffer" + „Titel nicht markiert". */
+function applyHighlight(el: HTMLElement, query: string, selectors: string[]): void {
+  if (!query) return;
+  for (const sel of selectors)
+    el.querySelectorAll<HTMLElement>(sel).forEach((r) => highlightMatches(r, query));
+  const marks = [...el.querySelectorAll<HTMLElement>("mark.hl")];
+  if (!marks.length) return;
+
+  const bar = document.createElement("div");
+  bar.className = "hitnav";
+  const prev = document.createElement("button"); prev.textContent = "◀"; prev.title = "vorige Fundstelle";
+  const next = document.createElement("button"); next.textContent = "▶"; next.title = "nächste Fundstelle";
+  const label = document.createElement("span"); label.className = "hitcount";
+  bar.append(prev, label, next);
+  el.insertBefore(bar, el.firstChild);
+
+  let cur = -1;
+  const go = (i: number): void => {
+    if (cur >= 0) marks[cur].classList.remove("active");
+    cur = (i + marks.length) % marks.length;
+    marks[cur].classList.add("active");
+    marks[cur].scrollIntoView({ block: "center" });
+    label.textContent = `${cur + 1} / ${marks.length}`;
+  };
+  prev.onclick = () => go(cur - 1);
+  next.onclick = () => go(cur + 1);
+  go(0);
 }
 
 /** Detailansicht für einen System-Ring-Eintrag: Kurzbeschreibung, Öffnen-Button
@@ -98,7 +122,7 @@ export async function renderSystemItem(
     ${pfad ? `<div class="path" style="margin-top:12px">${esc(pfad)}</div>` : ""}
   `;
   if (!pfad) {
-    if (highlight) { highlightMatches(el, highlight); scrollToFirstHit(el); }
+    applyHighlight(el, highlight, ["h2", ".desc"]);
     return;
   }
   el.querySelector<HTMLButtonElement>("#open-sys")!.onclick = () => openSystemFile(pfad);
@@ -106,7 +130,7 @@ export async function renderSystemItem(
   if (el.dataset.current !== item.id) return; // inzwischen anderer Eintrag angeklickt
   const prev = el.querySelector<HTMLDivElement>("#sys-preview");
   if (prev) prev.innerHTML = md.render(raw);
-  if (highlight) { highlightMatches(el, highlight); scrollToFirstHit(el); }
+  applyHighlight(el, highlight, ["h2", ".desc", "#sys-preview"]);
 }
 
 export function initInspector(
@@ -143,11 +167,8 @@ export function initInspector(
       };
     });
 
-    // Suchbegriff im Text markieren + zur ersten Fundstelle scrollen.
-    if (highlight) {
-      highlightMatches(el.querySelector<HTMLElement>(".preview"), highlight);
-      scrollToFirstHit(el);
-    }
+    // Suchbegriff in Titel + Vorschau markieren, Treffer-Navigator einblenden.
+    applyHighlight(el, highlight, ["h2", ".preview"]);
   };
 }
 

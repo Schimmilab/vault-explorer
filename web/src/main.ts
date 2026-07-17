@@ -101,7 +101,8 @@ async function boot() {
   relayoutBtn.addEventListener("click", () => graph.relayout());
 
   const searchEl = document.getElementById("search") as HTMLInputElement;
-  const search = initSearch(searchEl);
+  const searchResultsEl = document.getElementById("results")!;
+  const search = initSearch(searchEl, searchResultsEl);
   // Notiz-Index (~4 MB) wird lazy im Hintergrund gebaut, damit der UI-Start
   // (Graph + Views) nicht auf das Fetchen + Indizieren wartet. Bis er bereit ist,
   // liefert die Wrapper-Funktion keine Treffer (Ring-Suche funktioniert sofort,

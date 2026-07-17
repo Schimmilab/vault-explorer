@@ -59,6 +59,25 @@ html, body, #app { height: 100%; background: #0e1116; color: #e6e6e6;
   border: 1px solid #2a2f3a; background: #1d2530; color: #e6e6e6; cursor: pointer; }
 /* Suchbegriff-Treffer im Dokument-Preview hervorheben. */
 #inspector mark.hl { background: #ffd24a; color: #0e1116; border-radius: 2px; padding: 0 1px; }
+/* Aktive Fundstelle (Treffer-Navigation) — kräftiger + Umrandung. */
+#inspector mark.hl.active { background: #ff9d3a; outline: 2px solid #ffd24a; }
+/* Treffer-Navigator oben im Panel — bleibt beim Scrollen sichtbar. */
+#inspector .hitnav { position: sticky; top: -20px; z-index: 1; display: flex; align-items: center;
+  gap: 8px; margin: -8px 0 10px; padding: 4px 0; background: #12161d; }
+#inspector .hitnav button { margin: 0; padding: 2px 9px; font-size: 12px; }
+#inspector .hitnav .hitcount { color: #9db4d8; font-size: 12px; }
+
+/* Live-Trefferliste unter dem Suchfeld. */
+#results { position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
+  z-index: 10; width: 380px; max-width: 80vw; max-height: 50vh; overflow-y: auto;
+  background: #171b22; border: 1px solid #2a2f3a; border-radius: 8px; padding: 4px; }
+#results.hidden { display: none; }
+#results .result-row { padding: 6px 8px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: baseline; gap: 8px; }
+#results .result-row:hover { background: #263041; }
+#results .r-title { color: #e6e6e6; font-size: 13px; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#results .r-area { color: #8a94a6; font-size: 11px; flex-shrink: 0; }
 
 /* Wartungs-Overlay (Insights) — linkes Drawer, spiegelt den Inspektor rechts. */
 #insights { position: absolute; top: 0; left: 0; z-index: 11; height: 100%;
