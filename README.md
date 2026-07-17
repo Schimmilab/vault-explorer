@@ -22,10 +22,14 @@ liefert genau das.
   Routines) als konzentrische Ringe. Read-only aus dem lokalen Setup gelesen, MCPs nur
   als Server-Namen (keine Secrets).
 - **Suche** — Volltext in allen drei Modi (Notizen im Graph/Kuchen, System-Einträge im
-  Ring). Treffer fliegen an, werden markiert und im Inspektor geöffnet; der Suchbegriff
-  wird in der Markdown-Vorschau hervorgehoben.
-- **Inspektor** — Markdown-Vorschau der Notiz mit klickbaren internen Links; „In App
-  öffnen" öffnet die Datei im System-Editor.
+  Ring). **Live-Trefferliste** unter dem Suchfeld (nicht nur der oberste Treffer),
+  optional nach **Bereich bzw. Typ gefiltert**. Der gewählte Treffer fliegt an und wird
+  im Inspektor geöffnet; der Suchbegriff wird in **Titel und Vorschau** markiert, ein
+  **Treffer-Navigator** (◀ n/N ▶) springt durch alle Fundstellen.
+- **Inspektor** — Markdown-Vorschau der Notiz mit klickbaren internen Links; externe
+  Links (http/https) öffnen in einem neuen Tab. **Zurück/Vorwärts** durch die geöffneten
+  Dokumente, **Panel-Breite** per Zieh-Griff anpassbar (lokal gemerkt). „In App öffnen"
+  öffnet die Datei im System-Editor.
 - **Wartung** — Analysen über Obsidian hinaus: isolierte Notizen (Orphans),
   meistverlinkte Notizen (Hubs), tote Links (Ziel existiert nicht).
 - **Vault neu laden** — liest den Vault ohne Server-Neustart frisch ein.
