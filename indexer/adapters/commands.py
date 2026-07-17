@@ -8,7 +8,7 @@ def _describe(md: Path) -> str:
     """Kurzbeschreibung: description-Frontmatter → erste Blockquote-Zeile (> …,
     so schreiben die ki-os-Commands ihre Kurzbeschreibung) → erste Prosa-Zeile."""
     try:
-        post = frontmatter.load(md)
+        post = frontmatter.loads(md.read_text(encoding="utf-8"))
         if post.metadata.get("description"):
             return str(post.metadata["description"])
         lines = post.content.splitlines()

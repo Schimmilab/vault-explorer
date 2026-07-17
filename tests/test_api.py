@@ -3,6 +3,7 @@ import importlib
 
 import pytest
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 
 @pytest.fixture
@@ -76,11 +77,12 @@ def test_search_index(client):
 def test_open_invokes_opener(client, monkeypatch):
     calls = []
     import server.app as appmod
-    monkeypatch.setattr(appmod.subprocess, "Popen", lambda args, **k: calls.append(args))
+    # _open_in_system statt subprocess.Popen mocken → plattformunabhängig (Windows: os.startfile).
+    monkeypatch.setattr(appmod, "_open_in_system", lambda path: calls.append(path))
     r = client.post("/api/open", json={"id": "01-context/a.md"})
     assert r.status_code == 200
     assert len(calls) == 1
-    assert calls[0][-1].endswith("01-context/a.md")
+    assert Path(calls[0]).parts[-2:] == ("01-context", "a.md")
 
 
 def test_open_404_missing(client):
@@ -138,7 +140,7 @@ def test_open_system_invokes_opener(client, monkeypatch):
     assert path is not None
     calls = []
     import server.app as appmod
-    monkeypatch.setattr(appmod.subprocess, "Popen", lambda args, **k: calls.append(args))
+    monkeypatch.setattr(appmod, "_open_in_system", lambda path: calls.append(path))
     r = client.post("/api/open-system", json={"path": path})
     assert r.status_code == 200
-    assert calls and calls[0][-1] == path
+    assert calls and calls[0] == path

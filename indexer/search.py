@@ -16,7 +16,7 @@ def build_docs(vault_root: Path, graph: Graph) -> list[dict]:
     docs: list[dict] = []
     for n in graph.nodes:
         try:
-            text = frontmatter.load(vault_root / n.id).content
+            text = frontmatter.loads((vault_root / n.id).read_text(encoding="utf-8")).content
         except Exception:
             text = ""
         docs.append({

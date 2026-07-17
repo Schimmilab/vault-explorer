@@ -7,7 +7,7 @@ import frontmatter
 
 def _describe(skill_md: Path) -> str:
     try:
-        post = frontmatter.load(skill_md)
+        post = frontmatter.loads(skill_md.read_text(encoding="utf-8"))
         if "description" in post.metadata:
             return str(post.metadata["description"])
         for line in post.content.splitlines():

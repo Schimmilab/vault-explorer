@@ -12,7 +12,7 @@ def collect(memory_dir: Path) -> list[dict]:
         if md.name == "MEMORY.md":
             continue  # der Index selbst ist kein Eintrag
         try:
-            meta = frontmatter.load(md).metadata
+            meta = frontmatter.loads(md.read_text(encoding="utf-8")).metadata
         except Exception:
             meta = {}
         out.append({

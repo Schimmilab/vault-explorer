@@ -61,7 +61,7 @@ def build_graph(vault_root: Path) -> Graph:
     for p in files:
         rel = p.relative_to(vault_root).as_posix()
         try:
-            post = frontmatter.load(p)
+            post = frontmatter.loads(p.read_text(encoding="utf-8"))
             content, fm = post.content, dict(post.metadata)
         except Exception:
             content, fm = p.read_text(encoding="utf-8", errors="replace"), {}
