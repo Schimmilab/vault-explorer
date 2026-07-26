@@ -104,3 +104,8 @@ Der System-Ring ist optional — fehlende Quellen lassen einfach ihren Ring leer
 ## Lizenz
 
 [MIT](LICENSE)
+
+## Maintainer
+
+Schimmi — https://schimmilab.de
+Issues und Pull Requests willkommen.
